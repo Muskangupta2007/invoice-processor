@@ -1,0 +1,1014 @@
+import os
+import sqlite3
+import pandas as pd
+import re
+from datetime import datetime
+import threading
+import time
+
+# For PostgreSQL support
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "invoices.db")
+
+COMPANIES = ['SK Agro', 'SK Electricals', 'Triotech']
+
+# Tracks modification times of Excel files saved by the app to prevent self-sync loops
+last_written_mtime = {}
+
+class PostgresCursorWrapper:
+    def __init__(self, real_cursor):
+        self.cursor = real_cursor
+
+    def execute(self, query, params=None):
+        if "INTEGER PRIMARY KEY AUTOINCREMENT" in query:
+            query = query.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        
+        if "INSERT OR IGNORE INTO documents" in query:
+            query = query.replace("INSERT OR IGNORE INTO documents", "INSERT INTO documents")
+            query += " ON CONFLICT (company, doc_type, doc_no) DO NOTHING"
+            
+        if "INSERT OR IGNORE INTO settings" in query:
+            query = query.replace("INSERT OR IGNORE INTO settings", "INSERT INTO settings")
+            query += " ON CONFLICT (key) DO NOTHING"
+
+        query = query.replace('?', '%s')
+
+        if params is not None:
+            self.cursor.execute(query, params)
+        else:
+            self.cursor.execute(query)
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is not None:
+            return dict(row)
+        return None
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+    def close(self):
+        self.cursor.close()
+
+class PostgresConnectionWrapper:
+    def __init__(self, real_conn):
+        self.conn = real_conn
+
+    def cursor(self):
+        return PostgresCursorWrapper(self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor))
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+def get_db_connection():
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and HAS_PSYCOPG2:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        conn = psycopg2.connect(db_url)
+        return PostgresConnectionWrapper(conn)
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def get_excel_storage_dir():
+    custom_dir = get_setting("excel_storage_directory", "")
+    if custom_dir:
+        custom_dir = custom_dir.strip().strip('"').strip("'").strip()
+        if os.path.exists(custom_dir):
+            return custom_dir
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_company_excel_path(company, file_type='main'):
+    directory = get_excel_storage_dir()
+    safe_company = company.replace(' ', '_')
+    if file_type == 'pending':
+        file_name = f"{safe_company}_Pending_MRN.xlsx"
+    else:
+        file_name = f"{safe_company}.xlsx"
+    return os.path.join(directory, file_name)
+
+def check_excel_writable(company):
+    main_excel_path = get_company_excel_path(company, 'main')
+    pending_excel_path = get_company_excel_path(company, 'pending')
+    for path in [main_excel_path, pending_excel_path]:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r+'):
+                    pass
+            except PermissionError as e:
+                raise PermissionError(f"The Excel file '{os.path.basename(path)}' is currently open or locked. Please close it in Microsoft Excel and try again.") from e
+            except Exception:
+                pass
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("DROP TABLE IF EXISTS invoices")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company TEXT NOT NULL,
+            doc_type TEXT NOT NULL, /* 'Invoice' or 'Challan' */
+            doc_no TEXT NOT NULL,
+            doc_date TEXT,
+            invoice_no TEXT, /* Associated Invoice for Challan */
+            challan_no TEXT, /* Associated Challan for Invoice */
+            bill_to TEXT,
+            po_wo_no TEXT,
+            item_description TEXT,
+            amount REAL,
+            eway_bill TEXT,
+            asn_no TEXT,
+            mode_of_transp TEXT,
+            dock_code TEXT,
+            delivery_date TEXT,
+            delivery_site TEXT,
+            mrn_status TEXT DEFAULT 'PENDING',
+            mrn_date TEXT,
+            mrn_no TEXT,
+            remarks TEXT,
+            
+            /* Delivery Challan Custom fields */
+            deliver_qty TEXT,
+            uom TEXT,
+            unit_price TEXT,
+            po_status TEXT,
+            po_qty TEXT,
+            
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(company, doc_type, doc_no)
+        )
+    """)
+    
+    # Create settings table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    
+    # Seed default admin credentials
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'admin')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'invosync2026')")
+    
+    conn.commit()
+    conn.close()
+    
+    start_excel_watcher()
+
+def get_setting(key, default=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return row['value']
+    return default
+
+def save_setting(key, value):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO settings (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    """, (key, value))
+    conn.commit()
+    conn.close()
+
+def get_documents(company=None, doc_type=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = "SELECT * FROM documents"
+    params = []
+    
+    conditions = []
+    if company:
+        conditions.append("company = ?")
+        params.append(company)
+    if doc_type:
+        conditions.append("doc_type = ?")
+        params.append(doc_type)
+        
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+        
+    query += " ORDER BY id DESC"
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_document_by_no(company, doc_type, doc_no):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM documents WHERE company = ? AND doc_type = ? AND doc_no = ?",
+        (company, doc_type, doc_no)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def add_document(data):
+    company = data.get('company')
+    doc_type = data.get('doc_type')
+    
+    if not company or not doc_type:
+        return False
+        
+    check_excel_writable(company)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO documents (
+                company, doc_type, doc_no, doc_date, invoice_no, challan_no,
+                bill_to, po_wo_no, item_description, amount, eway_bill, asn_no,
+                mode_of_transp, dock_code, delivery_date, delivery_site,
+                mrn_status, mrn_date, mrn_no, remarks,
+                deliver_qty, uom, unit_price, po_status, po_qty
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            company,
+            doc_type,
+            data.get('doc_no'),
+            data.get('doc_date'),
+            data.get('invoice_no'),
+            data.get('challan_no'),
+            data.get('bill_to'),
+            data.get('po_wo_no'),
+            data.get('item_description'),
+            data.get('amount'),
+            data.get('eway_bill'),
+            data.get('asn_no'),
+            data.get('mode_of_transp'),
+            data.get('dock_code'),
+            data.get('delivery_date'),
+            data.get('delivery_site'),
+            data.get('mrn_status', 'PENDING'),
+            data.get('mrn_date'),
+            data.get('mrn_no'),
+            data.get('remarks'),
+            data.get('deliver_qty'),
+            data.get('uom'),
+            data.get('unit_price'),
+            data.get('po_status'),
+            data.get('po_qty')
+        ))
+        conn.commit()
+        success = True
+    except Exception as e:
+        print(f"DB Integrity/Save error: {e}")
+        success = False
+    finally:
+        conn.close()
+    
+    if success:
+        sync_to_excel(company)
+    return success
+
+def update_document(company, doc_type, doc_no, data):
+    check_excel_writable(company)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    fields = []
+    values = []
+    
+    updatable_fields = [
+        'doc_date', 'invoice_no', 'challan_no', 'bill_to', 'po_wo_no',
+        'item_description', 'amount', 'eway_bill', 'asn_no', 'mode_of_transp',
+        'dock_code', 'delivery_date', 'delivery_site', 'mrn_status',
+        'mrn_date', 'mrn_no', 'remarks',
+        'deliver_qty', 'uom', 'unit_price', 'po_status', 'po_qty'
+    ]
+    
+    for f in updatable_fields:
+        if f in data:
+            fields.append(f"{f} = ?")
+            values.append(data[f])
+            
+    if not fields:
+        conn.close()
+        return False
+        
+    values.extend([company, doc_type, doc_no])
+    query = f"UPDATE documents SET {', '.join(fields)} WHERE company = ? AND doc_type = ? AND doc_no = ?"
+    
+    cursor.execute(query, tuple(values))
+    conn.commit()
+    rows_affected = cursor.rowcount
+    conn.close()
+    
+    if rows_affected > 0:
+        sync_to_excel(company)
+        return True
+    return False
+
+def delete_document(company, doc_type, doc_no):
+    check_excel_writable(company)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM documents WHERE company = ? AND doc_type = ? AND doc_no = ?",
+        (company, doc_type, doc_no)
+    )
+    conn.commit()
+    rows_affected = cursor.rowcount
+    conn.close()
+    
+    if rows_affected > 0:
+        sync_to_excel(company)
+        return True
+    return False
+
+def calculate_difference(del_qty_str, po_qty_str):
+    """
+    Computes difference between Deliver Qty and PO Qty line-by-line.
+    Returns calculated values joined by newlines.
+    """
+    del_qty_str = str(del_qty_str or '').strip()
+    po_qty_str = str(po_qty_str or '').strip()
+    
+    if not del_qty_str and not po_qty_str:
+        return ""
+        
+    del_parts = [p.strip() for p in del_qty_str.split('\n')] if del_qty_str else []
+    po_parts = [p.strip() for p in po_qty_str.split('\n')] if po_qty_str else []
+    
+    max_len = max(len(del_parts), len(po_parts))
+    diff_parts = []
+    
+    for i in range(max_len):
+        d_val = 0.0
+        p_val = 0.0
+        
+        if i < len(del_parts) and del_parts[i]:
+            try:
+                d_val = float(del_parts[i].replace(',', '').strip())
+            except ValueError:
+                pass
+        if i < len(po_parts) and po_parts[i]:
+            try:
+                p_val = float(po_parts[i].replace(',', '').strip())
+            except ValueError:
+                pass
+                
+        # Calculate Difference (Deliver Qty - PO Qty)
+        diff = d_val - p_val
+        # Format as integer if whole number, otherwise float
+        diff_str = str(int(diff)) if diff.is_integer() else f"{diff:.2f}"
+        diff_parts.append(diff_str)
+        
+    return "\n".join(diff_parts)
+
+def sync_to_excel(company=None, sync_main=True, sync_pending=True):
+    """
+    Syncs SQLite records. In-place updates the {Company}.xlsx file
+    (with Invoices & Delivery Challans sheets, keeping custom formatting/user edits)
+    and {Company}_Pending_MRN.xlsx (with pending MRN list).
+    """
+    companies_to_sync = [company] if company else COMPANIES
+    
+    for comp in companies_to_sync:
+        main_excel_path = get_company_excel_path(comp, 'main')
+        pending_excel_path = get_company_excel_path(comp, 'pending')
+        
+        all_docs = get_documents(company=comp)
+        invoices = [d for d in all_docs if d['doc_type'] == 'Invoice']
+        challans = [d for d in all_docs if d['doc_type'] == 'Challan']
+        
+        # Column headers definitions (including MRN fields)
+        cols_inv = [
+            'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
+            'PO/WO No', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
+            'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+        ]
+        
+        cols_chal = [
+            'S.No', 'Delivery Challan No', 'Item Description', 'Deliver Qty', 'UOM',
+            'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+            'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 'Remarks'
+        ]
+        
+        # 1. Update / Create Main Excel File
+        if sync_main:
+            import openpyxl
+            from openpyxl.styles import Alignment
+            
+            os.makedirs(os.path.dirname(main_excel_path), exist_ok=True)
+            
+            # Load or create workbook
+            if os.path.exists(main_excel_path):
+                try:
+                    wb = openpyxl.load_workbook(main_excel_path)
+                except Exception as e:
+                    print(f"Error loading existing workbook for {comp}, recreating: {e}")
+                    wb = openpyxl.Workbook()
+            else:
+                wb = openpyxl.Workbook()
+                
+            # Ensure sheets exist and remove default 'Sheet'
+            if 'Sheet' in wb.sheetnames and len(wb.sheetnames) > 1:
+                wb.remove(wb['Sheet'])
+                
+            for sheet_name, cols, docs, key_col_idx, doc_key_field in [
+                ('Invoices', cols_inv, invoices, 1, 'doc_no'),  # key is Invoice No (index 1)
+                ('Delivery Challans', cols_chal, challans, 1, 'doc_no')  # key is Delivery Challan No (index 1)
+            ]:
+                # Ensure sheet exists
+                if sheet_name not in wb.sheetnames:
+                    ws = wb.create_sheet(title=sheet_name)
+                    ws.append(cols)
+                else:
+                    ws = wb[sheet_name]
+                    
+                # If default sheet is still there and we created other sheets, remove it
+                if 'Sheet' in wb.sheetnames:
+                    try:
+                        wb.remove(wb['Sheet'])
+                    except Exception:
+                        pass
+                    
+                # Read current sheet rows to find which key corresponds to which row index
+                existing_row_map = {}  # { doc_no: row_index }
+                
+                # Check if headers match. If the sheet headers are empty or totally different, overwrite them
+                headers_match = True
+                for col_idx, col_name in enumerate(cols, 1):
+                    if ws.cell(row=1, column=col_idx).value != col_name:
+                        headers_match = False
+                        break
+                
+                if not headers_match:
+                    ws.delete_rows(1, ws.max_row + 1)
+                    ws.append(cols)
+                else:
+                    for r_idx in range(2, ws.max_row + 1):
+                        key_val = ws.cell(row=r_idx, column=key_col_idx + 1).value
+                        if key_val is not None:
+                            k_str = str(key_val).strip()
+                            if k_str not in existing_row_map:
+                                existing_row_map[k_str] = r_idx
+                
+                # Sort SQLite docs ascending by ID (to maintain order)
+                sorted_docs = sorted(docs, key=lambda x: x['id'])
+                active_keys = set()
+                
+                for idx, doc in enumerate(sorted_docs, 1):
+                    doc_key = str(doc.get(doc_key_field, '')).strip()
+                    if not doc_key:
+                        continue
+                    active_keys.add(doc_key)
+                    
+                    # Map SQLite values to cols
+                    row_data = []
+                    for col in cols:
+                        if col == 'S.No':
+                            row_data.append(idx)
+                        elif col == 'Invoice No' or col == 'Delivery Challan No':
+                            row_data.append(doc.get('doc_no', ''))
+                        elif col == 'Invoice Date' or col == 'Delivery Date':
+                            row_data.append(doc.get('doc_date', ''))
+                        elif col == 'Challan No':
+                            row_data.append(doc.get('challan_no', ''))
+                        elif col == 'Bill To':
+                            row_data.append(doc.get('bill_to', ''))
+                        elif col == 'PO/WO No' or col == 'PO Number':
+                            row_data.append(doc.get('po_wo_no', ''))
+                        elif col == 'Invoice Amt':
+                            row_data.append(doc.get('amount', 0.0))
+                        elif col == 'Eway Bill':
+                            row_data.append(doc.get('eway_bill', ''))
+                        elif col == 'ASN No':
+                            row_data.append(doc.get('asn_no', ''))
+                        elif col == 'Mode of Transp':
+                            row_data.append(doc.get('mode_of_transp', ''))
+                        elif col == 'Dock Code':
+                            row_data.append(doc.get('dock_code', ''))
+                        elif col == 'Delivery Site' or col == 'Delivery Location':
+                            row_data.append(doc.get('delivery_site', ''))
+                        elif col == 'MRN Status':
+                            row_data.append(doc.get('mrn_status', 'PENDING'))
+                        elif col == 'MRN Date':
+                            row_data.append(doc.get('mrn_date', ''))
+                        elif col == 'MRN No':
+                            row_data.append(doc.get('mrn_no', ''))
+                        elif col == 'Remarks':
+                            row_data.append(doc.get('remarks', ''))
+                        elif col == 'Item Description':
+                            row_data.append(doc.get('item_description', ''))
+                        elif col == 'Deliver Qty':
+                            row_data.append(doc.get('deliver_qty', ''))
+                        elif col == 'UOM':
+                            row_data.append(doc.get('uom', ''))
+                        elif col == 'Unit Price':
+                            row_data.append(doc.get('unit_price', ''))
+                        elif col == 'PO Status':
+                            row_data.append(doc.get('po_status', ''))
+                        elif col == 'PO Qty':
+                            row_data.append(doc.get('po_qty', ''))
+                        elif col == 'Difference Between Delivery & PO Qty':
+                            row_data.append(calculate_difference(doc.get('deliver_qty'), doc.get('po_qty')))
+                        elif col == 'Invoice Number':
+                            row_data.append(doc.get('invoice_no', ''))
+                        else:
+                            row_data.append('')
+                    
+                    if doc_key in existing_row_map:
+                        target_row = existing_row_map[doc_key]
+                        for col_idx, val in enumerate(row_data, 1):
+                            cell = ws.cell(row=target_row, column=col_idx)
+                            cell.value = val
+                            if isinstance(val, str) and '\n' in val:
+                                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                    else:
+                        ws.append(row_data)
+                        new_row_idx = ws.max_row
+                        for col_idx, val in enumerate(row_data, 1):
+                            if isinstance(val, str) and '\n' in val:
+                                ws.cell(row=new_row_idx, column=col_idx).alignment = Alignment(wrap_text=True, vertical='top')
+                
+                # Clean up deleted records and duplicate rows
+                seen_keys = set()
+                rows_to_delete = []
+                for r_idx in range(2, ws.max_row + 1):
+                    key_val = ws.cell(row=r_idx, column=key_col_idx + 1).value
+                    if key_val is not None:
+                        k_str = str(key_val).strip()
+                        if not k_str or k_str not in active_keys or k_str in seen_keys:
+                            rows_to_delete.append(r_idx)
+                        else:
+                            seen_keys.add(k_str)
+                    else:
+                        rows_to_delete.append(r_idx)
+                
+                for r_idx in sorted(rows_to_delete, reverse=True):
+                    ws.delete_rows(r_idx, 1)
+                            
+                # Recalculate S.No
+                for r_idx in range(2, ws.max_row + 1):
+                    ws.cell(row=r_idx, column=1, value=r_idx - 1)
+                    
+                # Formatting line wrap for all rows with newlines in the sheets
+                for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+                    for cell in row:
+                        if cell.value and isinstance(cell.value, str) and '\n' in cell.value:
+                            cell.alignment = Alignment(wrap_text=True, vertical='top')
+                            
+                # Auto-fit column widths to prevent text wrapping and visual misalignment
+                from openpyxl.utils import get_column_letter
+                for col in ws.columns:
+                    max_len = 0
+                    for cell in col:
+                        if cell.value is not None:
+                            lines = str(cell.value).split('\n')
+                            for line in lines:
+                                if len(line) > max_len:
+                                    max_len = len(line)
+                    col_letter = get_column_letter(col[0].column)
+                    # Set dynamic column width with a minimum of 10 and safety cap at 100
+                    ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 100)
+                            
+            try:
+                import tempfile
+                import shutil
+                temp_dir = os.path.dirname(os.path.abspath(__file__))
+                fd, temp_path = tempfile.mkstemp(suffix='.xlsx', dir=temp_dir)
+                os.close(fd)
+                
+                wb.save(temp_path)
+                wb.close()
+                
+                # Atomic replacement to prevent OneDrive file sync conflicts/corruption
+                shutil.move(temp_path, main_excel_path)
+                last_written_mtime[main_excel_path] = os.path.getmtime(main_excel_path)
+            except PermissionError as e:
+                raise PermissionError(f"The Excel file '{os.path.basename(main_excel_path)}' is currently open or locked. Please close it in Microsoft Excel and try again.") from e
+            except Exception as e:
+                print(f"Error saving main excel for {comp}: {e}")
+                if 'temp_path' in locals() and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+                raise
+                
+        # 2. Generate Pending MRN Workbook
+        if sync_pending:
+            pending_list = []
+            for inv in invoices:
+                status = str(inv.get('mrn_status', '')).upper()
+                mrn_no = inv.get('mrn_no')
+                if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
+                    pending_list.append({
+                        'Type': 'Invoice',
+                        'Doc No': inv['doc_no'],
+                        'Doc Date': inv['doc_date'],
+                        'Bill To': inv['bill_to'],
+                        'PO/WO No': inv['po_wo_no'],
+                        'Amount': inv['amount'],
+                        'Remarks': inv['remarks']
+                    })
+                    
+            for chal in challans:
+                status = str(chal.get('mrn_status', '')).upper()
+                mrn_no = chal.get('mrn_no')
+                if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
+                    pending_list.append({
+                        'Type': 'Delivery Challan',
+                        'Doc No': chal['doc_no'],
+                        'Doc Date': chal['doc_date'],
+                        'Bill To': chal['bill_to'],
+                        'PO/WO No': chal['po_wo_no'],
+                        'Amount': chal['amount'],
+                        'Remarks': chal['remarks']
+                    })
+                    
+            if pending_list:
+                df_pending = pd.DataFrame(pending_list).reindex(columns=[
+                    'Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'
+                ])
+            else:
+                df_pending = pd.DataFrame(columns=[
+                    'Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'
+                ])
+                
+            try:
+                import tempfile
+                import shutil
+                temp_dir = os.path.dirname(os.path.abspath(__file__))
+                fd, temp_path = tempfile.mkstemp(suffix='.xlsx', dir=temp_dir)
+                os.close(fd)
+                
+                with pd.ExcelWriter(temp_path, engine='openpyxl') as writer:
+                    df_pending.to_excel(writer, sheet_name='Pending MRNs', index=False)
+                    
+                # Atomic replacement to prevent OneDrive file sync conflicts/corruption
+                shutil.move(temp_path, pending_excel_path)
+                last_written_mtime[pending_excel_path] = os.path.getmtime(pending_excel_path)
+            except PermissionError as e:
+                raise PermissionError(f"The Pending MRN Excel file '{os.path.basename(pending_excel_path)}' is currently open or locked. Please close it in Microsoft Excel and try again.") from e
+            except Exception as e:
+                print(f"Error syncing pending MRNs excel for {comp}: {e}")
+                if 'temp_path' in locals() and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+                raise
+    
+def sync_from_excel():
+    """
+    On startup, if the SQLite DB is empty, this scans the excel storage folder
+    and loads SK_Agro.xlsx, SK_Electricals.xlsx, and Triotech.xlsx.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT count(*) FROM documents")
+    count = cursor.fetchone()[0]
+    if count > 0:
+        conn.close()
+        return
+        
+    for comp in COMPANIES:
+        main_excel_path = get_company_excel_path(comp, 'main')
+        if not os.path.exists(main_excel_path):
+            continue
+            
+        try:
+            print(f"Seeding SQLite database from company workbook: {main_excel_path}")
+            xls = pd.ExcelFile(main_excel_path)
+            
+            # Read Invoices Sheet
+            if 'Invoices' in xls.sheet_names:
+                df_inv = pd.read_excel(main_excel_path, sheet_name='Invoices')
+                excel_to_db_inv = {
+                    'Invoice No': 'doc_no',
+                    'Invoice Date': 'doc_date',
+                    'Challan No': 'challan_no',
+                    'Bill To': 'bill_to',
+                    'PO/WO No': 'po_wo_no',
+                    'Invoice Amt': 'amount',
+                    'Eway Bill': 'eway_bill',
+                    'ASN No': 'asn_no',
+                    'Mode of Transp': 'mode_of_transp',
+                    'Dock Code': 'dock_code',
+                    'Delivery Date': 'delivery_date',
+                    'Delivery Site': 'delivery_site',
+                    'MRN Status': 'mrn_status',
+                    'MRN Date': 'mrn_date',
+                    'MRN No': 'mrn_no',
+                    'Remarks': 'remarks'
+                }
+                df_inv = df_inv.rename(columns=excel_to_db_inv)
+                cols_to_insert = [v for v in excel_to_db_inv.values() if v in df_inv.columns]
+                df_inv = df_inv[cols_to_insert]
+                
+                if 'doc_no' in df_inv.columns:
+                    df_inv = df_inv.dropna(subset=['doc_no'])
+                    for _, row in df_inv.iterrows():
+                        row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+                        row_dict['company'] = comp
+                        row_dict['doc_type'] = 'Invoice'
+                        
+                        if 'amount' in row_dict and row_dict['amount'] is not None:
+                            try:
+                                row_dict['amount'] = float(str(row_dict['amount']).replace(',', '').strip())
+                            except ValueError:
+                                row_dict['amount'] = 0.0
+                                
+                        placeholders = ", ".join(["?"] * len(row_dict))
+                        columns = ", ".join(row_dict.keys())
+                        values = tuple(row_dict.values())
+                        cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+            
+            # Read Delivery Challans Sheet
+            if 'Delivery Challans' in xls.sheet_names:
+                df_chal = pd.read_excel(main_excel_path, sheet_name='Delivery Challans')
+                excel_to_db_chal = {
+                    'Delivery Challan No': 'doc_no',
+                    'Item Description': 'item_description',
+                    'Deliver Qty': 'deliver_qty',
+                    'UOM': 'uom',
+                    'Unit Price': 'unit_price',
+                    'Delivery Date': 'delivery_date',
+                    'Delivery Location': 'delivery_site',
+                    'PO Status': 'po_status',
+                    'PO Number': 'po_wo_no',
+                    'PO Qty': 'po_qty',
+                    'Invoice Number': 'invoice_no',
+                    'MRN Status': 'mrn_status',
+                    'MRN Date': 'mrn_date',
+                    'MRN No': 'mrn_no',
+                    'Remarks': 'remarks'
+                }
+                df_chal = df_chal.rename(columns=excel_to_db_chal)
+                cols_to_insert = [v for v in excel_to_db_chal.values() if v in df_chal.columns]
+                df_chal = df_chal[cols_to_insert]
+                
+                if 'doc_no' in df_chal.columns:
+                    df_chal = df_chal.dropna(subset=['doc_no'])
+                    for _, row in df_chal.iterrows():
+                        row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+                        row_dict['company'] = comp
+                        row_dict['doc_type'] = 'Challan'
+                        
+                        # Clean fields
+                        for f in ['deliver_qty', 'uom', 'unit_price', 'po_qty']:
+                            if f in row_dict and row_dict[f] is not None:
+                                row_dict[f] = str(row_dict[f])
+                                
+                        placeholders = ", ".join(["?"] * len(row_dict))
+                        columns = ", ".join(row_dict.keys())
+                        values = tuple(row_dict.values())
+                        cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+                        
+            conn.commit()
+        except Exception as e:
+            print(f"Error seeding database from excel file {main_excel_path}: {e}")
+            
+    conn.close()
+
+def check_invoice_sequence(company, doc_type):
+    documents = get_documents(company=company, doc_type=doc_type)
+    if len(documents) < 2:
+        return {"status": "ok", "missing_numbers": [], "pattern": ""}
+    
+    doc_nos = [doc['doc_no'] for doc in sorted(documents, key=lambda x: x['id'])]
+    first_no = doc_nos[0]
+    last_num_match = list(re.finditer(r'\d+', first_no))
+    if not last_num_match:
+        return {"status": "ok", "missing_numbers": [], "pattern": ""}
+        
+    last_match = last_num_match[-1]
+    start_pos, end_pos = last_match.span()
+    prefix = first_no[:start_pos]
+    suffix = first_no[end_pos:]
+    
+    seq_nums = []
+    for doc_no in doc_nos:
+        if doc_no.startswith(prefix) and doc_no.endswith(suffix):
+            middle_part = doc_no[start_pos:len(doc_no)-len(suffix)]
+            if middle_part.isdigit():
+                seq_nums.append(int(middle_part))
+                
+    if len(seq_nums) < 2:
+        return {"status": "ok", "missing_numbers": [], "pattern": f"{prefix}{{num}}{suffix}"}
+        
+    seq_nums = sorted(list(set(seq_nums)))
+    min_val = seq_nums[0]
+    max_val = seq_nums[-1]
+    
+    full_range = set(range(min_val, max_val + 1))
+    missing = sorted(list(full_range - set(seq_nums)))
+    missing_formatted = [f"{prefix}{num}{suffix}" for num in missing]
+    
+    return {
+        "status": "warning" if missing_formatted else "ok",
+        "missing_numbers": missing_formatted,
+        "pattern": f"{prefix}{{num}}{suffix}"
+    }
+
+def check_missing_mrn(company=None, doc_type=None):
+    documents = get_documents(company=company, doc_type=doc_type)
+    missing_mrn_list = []
+    for doc in documents:
+        status = str(doc.get('mrn_status', '')).upper()
+        mrn_no = doc.get('mrn_no')
+        if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
+            missing_mrn_list.append(doc)
+    return missing_mrn_list
+
+def sync_excel_to_db(company):
+    main_excel_path = get_company_excel_path(company, 'main')
+    if not os.path.exists(main_excel_path):
+        return
+        
+    try:
+        xls = pd.ExcelFile(main_excel_path)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Delete existing documents for this company from DB
+        cursor.execute("DELETE FROM documents WHERE company = ?", (company,))
+        
+        # Read Invoices Sheet
+        if 'Invoices' in xls.sheet_names:
+            df_inv = pd.read_excel(main_excel_path, sheet_name='Invoices')
+            excel_to_db_inv = {
+                'Invoice No': 'doc_no',
+                'Invoice Date': 'doc_date',
+                'Challan No': 'challan_no',
+                'Bill To': 'bill_to',
+                'PO/WO No': 'po_wo_no',
+                'Invoice Amt': 'amount',
+                'Eway Bill': 'eway_bill',
+                'ASN No': 'asn_no',
+                'Mode of Transp': 'mode_of_transp',
+                'Dock Code': 'dock_code',
+                'Delivery Date': 'delivery_date',
+                'Delivery Site': 'delivery_site',
+                'MRN Status': 'mrn_status',
+                'MRN Date': 'mrn_date',
+                'MRN No': 'mrn_no',
+                'Remarks': 'remarks'
+            }
+            df_inv = df_inv.rename(columns=excel_to_db_inv)
+            cols_to_insert = [v for v in excel_to_db_inv.values() if v in df_inv.columns]
+            df_inv = df_inv[cols_to_insert]
+            
+            if 'doc_no' in df_inv.columns:
+                df_inv = df_inv.dropna(subset=['doc_no'])
+                for _, row in df_inv.iterrows():
+                    row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+                    row_dict['company'] = company
+                    row_dict['doc_type'] = 'Invoice'
+                    
+                    if 'amount' in row_dict and row_dict['amount'] is not None:
+                        try:
+                            row_dict['amount'] = float(str(row_dict['amount']).replace(',', '').strip())
+                        except ValueError:
+                            row_dict['amount'] = 0.0
+                            
+                    placeholders = ", ".join(["?"] * len(row_dict))
+                    columns = ", ".join(row_dict.keys())
+                    values = tuple(row_dict.values())
+                    cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+        
+        # Read Delivery Challans Sheet
+        if 'Delivery Challans' in xls.sheet_names:
+            df_chal = pd.read_excel(main_excel_path, sheet_name='Delivery Challans')
+            excel_to_db_chal = {
+                'Delivery Challan No': 'doc_no',
+                'Item Description': 'item_description',
+                'Deliver Qty': 'deliver_qty',
+                'UOM': 'uom',
+                'Unit Price': 'unit_price',
+                'Delivery Date': 'delivery_date',
+                'Delivery Location': 'delivery_site',
+                'PO Status': 'po_status',
+                'PO Number': 'po_wo_no',
+                'PO Qty': 'po_qty',
+                'Invoice Number': 'invoice_no',
+                'Remarks': 'remarks'
+            }
+            df_chal = df_chal.rename(columns=excel_to_db_chal)
+            cols_to_insert = [v for v in excel_to_db_chal.values() if v in df_chal.columns]
+            df_chal = df_chal[cols_to_insert]
+            
+            if 'doc_no' in df_chal.columns:
+                df_chal = df_chal.dropna(subset=['doc_no'])
+                for _, row in df_chal.iterrows():
+                    row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+                    row_dict['company'] = company
+                    row_dict['doc_type'] = 'Challan'
+                    
+                    # Clean fields
+                    for f in ['deliver_qty', 'uom', 'unit_price', 'po_qty']:
+                         if f in row_dict and row_dict[f] is not None:
+                             row_dict[f] = str(row_dict[f])
+                             
+                    placeholders = ", ".join(["?"] * len(row_dict))
+                    columns = ", ".join(row_dict.keys())
+                    values = tuple(row_dict.values())
+                    cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+                    
+        conn.commit()
+        conn.close()
+        print(f"[Watcher] Successfully synced Excel changes to database for {company}")
+    except Exception as e:
+        print(f"[Watcher] Error syncing Excel changes to database for {company}: {e}")
+
+# Lock to prevent concurrent file-to-db and db-to-file sync conflicts
+sync_lock = threading.Lock()
+last_known_mtime = {}
+
+def start_excel_watcher():
+    def watcher_thread():
+        # Perform initial sync on startup to capture any offline edits
+        print("[Watcher] Performing initial database sync from Excel files...")
+        with sync_lock:
+            for comp in COMPANIES:
+                try:
+                    sync_excel_to_db(comp)
+                except Exception as e:
+                    print(f"[Watcher] Error in initial startup sync for {comp}: {e}")
+                    
+        # Populate initial mtimes
+        directory = get_excel_storage_dir()
+        for comp in COMPANIES:
+            main_path = get_company_excel_path(comp, 'main')
+            if os.path.exists(main_path):
+                last_known_mtime[main_path] = os.path.getmtime(main_path)
+                
+        # Watcher loop
+        while True:
+            time.sleep(2.0)
+            try:
+                directory = get_excel_storage_dir()
+                for comp in COMPANIES:
+                    main_path = get_company_excel_path(comp, 'main')
+                    if os.path.exists(main_path):
+                        mtime = os.path.getmtime(main_path)
+                        
+                        # If file is new to watcher, just track it
+                        if main_path not in last_known_mtime:
+                            last_known_mtime[main_path] = mtime
+                            continue
+                            
+                        if mtime != last_known_mtime[main_path]:
+                            last_known_mtime[main_path] = mtime
+                            
+                            # Check if modification was from the app itself
+                            expected_mtime = last_written_mtime.get(main_path, 0)
+                            if abs(mtime - expected_mtime) < 2.0:
+                                continue
+                                
+                            print(f"[Watcher] Manual Excel modification detected: {main_path}. Syncing...")
+                            with sync_lock:
+                                try:
+                                    # 1. Sync Excel to SQLite DB
+                                    sync_excel_to_db(comp)
+                                    # 2. Regenerate pending list and re-format Excel
+                                    sync_to_excel(comp, sync_main=False, sync_pending=True)
+                                except Exception as ex:
+                                    print(f"[Watcher] Sync failed for {comp}: {ex}")
+            except Exception as e:
+                print(f"[Watcher] Error in loop: {e}")
+                
+    t = threading.Thread(target=watcher_thread, daemon=True)
+    t.start()
+    print("[Watcher] Excel file watcher thread successfully started.")

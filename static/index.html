@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvoSync AI - Ingestion & Verification Hub</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Animated Dashboards -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css?v=2.0.2">
+</head>
+<body class="dark-mode">
+    <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
+    <div id="login-screen" class="login-overlay" style="display: none;">
+        <div class="login-box glass-card">
+            <div class="login-logo">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <h2>InvoSync <span>AI</span></h2>
+            </div>
+            <p class="login-subtitle">Ingestion & Verification Hub</p>
+            <form id="login-form">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="login-username">Username</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="login-username" placeholder="Enter username" required autocomplete="username">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 24px;">
+                    <label for="login-password">Password</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="app-container" id="app-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                </div>
+                <h2>InvoSync <span>AI</span></h2>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <a href="#dashboard" class="menu-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> Dashboard
+                </a>
+                <a href="#invoices" class="menu-item" data-tab="invoices">
+                    <i class="fa-solid fa-table"></i> Document Ledger
+                </a>
+                <a href="#upload" class="menu-item" data-tab="upload">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Center
+                </a>
+                <a href="#settings" class="menu-item" data-tab="settings">
+                    <i class="fa-solid fa-sliders"></i> System Settings
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator-group">
+                    <div class="status-item">
+                        <span id="gemini-status" class="dot red"></span>
+                        <span>Azure AI</span>
+                    </div>
+                    <div class="status-item">
+                        <span id="teams-status" class="dot red"></span>
+                        <span>MS Teams</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="btn btn-secondary btn-block" style="margin-top: 12px; width: 100%; font-size: 12px; padding: 6px;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Navigation Header -->
+            <header class="main-header">
+                <div class="header-title">
+                    <h1 id="page-title">Dashboard Overview</h1>
+                    <p class="subtitle" id="page-subtitle">Real-time invoice and challan ingestion metrics.</p>
+                </div>
+                <div class="header-actions">
+                    <button id="theme-toggle" class="theme-btn" title="Toggle Theme">
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
+                    <!-- Open Excel Dropdown Split Button -->
+                    <div class="dropdown-action-wrapper">
+                        <button id="open-excel-dropdown-btn" class="btn btn-secondary dropdown-action-trigger">
+                            <i class="fa-solid fa-folder-open"></i> Open in Excel <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-action-menu" id="open-excel-menu">
+                            <a href="#" class="open-excel-opt" data-type="main"><i class="fa-solid fa-table"></i> Main Ledger</a>
+                            <a href="#" class="open-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending MRNs</a>
+                        </div>
+                    </div>
+                    <!-- Export Ledger Dropdown Split Button -->
+                    <div class="dropdown-action-wrapper">
+                        <button id="export-excel-dropdown-btn" class="btn btn-primary dropdown-action-trigger">
+                            <i class="fa-solid fa-file-excel"></i> Export Ledger <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-action-menu" id="export-excel-menu">
+                            <a href="#" class="export-excel-opt" data-type="main"><i class="fa-solid fa-table"></i> Main Ledger</a>
+                            <a href="#" class="export-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending MRNs</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB CONTENT CONTAINER -->
+            <div class="tab-container">
+                
+                <!-- 1. DASHBOARD TAB -->
+                <section id="tab-dashboard" class="tab-content active">
+                    
+                    <!-- A. PORTAL VIEW (Default selection) -->
+                    <div id="portal-view">
+                        <div class="portal-header">
+                            <h2>Select Company Workspace</h2>
+                            <p>Choose a company to access its independent dashboard ledger and analytics.</p>
+                        </div>
+                        <div class="company-grid">
+                            <!-- SK Agro Card -->
+                            <div class="company-card glass-card enter-workspace-btn" data-company="SK Agro">
+                                <div class="company-card-header">
+                                    <div class="company-icon agro"><i class="fa-solid fa-wheat-awn"></i></div>
+                                    <h2>SK Agro</h2>
+                                </div>
+                                <div class="company-card-body">
+                                    <p>Manage agricultural supply invoices and delivery challans.</p>
+                                </div>
+                                <div class="company-card-footer">
+                                    <span class="btn btn-secondary">Enter Workspace <i class="fa-solid fa-arrow-right"></i></span>
+                                </div>
+                            </div>
+                            
+                            <!-- SK Electricals Card -->
+                            <div class="company-card glass-card enter-workspace-btn" data-company="SK Electricals">
+                                <div class="company-card-header">
+                                    <div class="company-icon electricals"><i class="fa-solid fa-bolt"></i></div>
+                                    <h2>SK Electricals</h2>
+                                </div>
+                                <div class="company-card-body">
+                                    <p>Manage electrical installations and equipment ledgers.</p>
+                                </div>
+                                <div class="company-card-footer">
+                                    <span class="btn btn-secondary">Enter Workspace <i class="fa-solid fa-arrow-right"></i></span>
+                                </div>
+                            </div>
+
+                            <!-- Triotech Card -->
+                            <div class="company-card glass-card enter-workspace-btn" data-company="Triotech">
+                                <div class="company-card-header">
+                                    <div class="company-icon triotech"><i class="fa-solid fa-microchip"></i></div>
+                                    <h2>Triotech</h2>
+                                </div>
+                                <div class="company-card-body">
+                                    <p>Manage technical solutions and heavy machinery datasets.</p>
+                                </div>
+                                <div class="company-card-footer">
+                                    <span class="btn btn-secondary">Enter Workspace <i class="fa-solid fa-arrow-right"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- B. DEDICATED WORKSPACE VIEW (Visible after company selection) -->
+                    <div id="workspace-view" style="display: none;">
+                        <div class="workspace-header glass-card">
+                            <button id="back-to-portal-btn" class="btn btn-secondary">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Portal
+                            </button>
+                            <div class="workspace-details">
+                                <h2 id="workspace-title">SK Agro Workspace</h2>
+                                <p id="workspace-subtitle">Verify invoices and delivery challans.</p>
+                            </div>
+                            <div class="workspace-selectors">
+                                <select id="workspace-module-select">
+                                    <option value="Invoice">Invoices</option>
+                                    <option value="Challan">Delivery Challans</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Stats Grid -->
+                        <div class="stats-grid">
+                            <!-- Card 1: Total Docs -->
+                            <div class="stat-card glass-card purple-gradient" id="card-total-docs" style="cursor: pointer;" title="Double-click to download Total Ledger report">
+                                <div class="stat-icon"><i class="fa-solid fa-file-invoice"></i></div>
+                                <div class="stat-info">
+                                    <h3 id="stat-total-title">Total Invoices</h3>
+                                    <p id="stat-total-invoices" class="stat-number">0</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Card 2: Volume -->
+                            <div class="stat-card glass-card green-gradient" id="card-volume" style="cursor: pointer;" title="Double-click to download Volume report">
+                                <div class="stat-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+                                <div class="stat-info">
+                                    <h3>Volume</h3>
+                                    <p id="stat-total-amount" class="stat-number">₹0.00</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Card 3: Pending MRN / PO -->
+                            <div class="stat-card glass-card orange-gradient" id="card-pending-mrn" style="cursor: pointer;" title="Double-click to download Pending list report">
+                                <div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                                <div class="stat-info">
+                                    <h3 id="stat-pending-title">Pending MRNs</h3>
+                                    <p id="stat-pending-mrns" class="stat-number">0</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Card 4: Sequence Gaps -->
+                            <div class="stat-card glass-card red-gradient" id="card-sequence-gaps" style="cursor: pointer;" title="Double-click to download Sequence Gaps report">
+                                <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="stat-info">
+                                    <h3 id="stat-gaps-title">Sequence Gap</h3>
+                                    <p id="stat-sequence-gaps" class="stat-number">0</p>
+                                </div>
+                            </div>
+
+                            <!-- Card 5: Pending E-Way Bill (Invoices only) -->
+                            <div class="stat-card glass-card blue-gradient" id="card-pending-eway" style="cursor: pointer;" title="Double-click to download Pending E-Way Bill report">
+                                <div class="stat-icon"><i class="fa-solid fa-truck-plane"></i></div>
+                                <div class="stat-info">
+                                    <h3>Pending E-Way Bill</h3>
+                                    <p id="stat-pending-eway" class="stat-number">0</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Alerts & Charts Grid -->
+                        <div class="dashboard-grid">
+                            <!-- Left Panel: Sequence Errors & Missing MRNs -->
+                            <div class="dashboard-panel alert-panel glass-card">
+                                <div class="panel-header">
+                                    <h2><i class="fa-solid fa-bell"></i> Critical Action Center</h2>
+                                </div>
+                                <div class="panel-body">
+                                    <!-- Sequence Gaps Sub-Section -->
+                                    <div class="alert-section">
+                                        <h3 class="alert-title-main warning" id="sequence-audit-title"><i class="fa-solid fa-circle-exclamation"></i> Sequence Audits</h3>
+                                        <div id="sequence-gaps-list" class="alert-list empty-state">
+                                            <p>No sequence gaps detected!</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <hr class="panel-divider">
+                                    
+                                    <!-- Missing MRNs Sub-Section -->
+                                    <div class="alert-section">
+                                        <h3 class="alert-title-main danger" id="missing-action-title"><i class="fa-solid fa-circle-xmark"></i> Pending MRN List</h3>
+                                        <div id="missing-mrns-list" class="alert-list empty-state">
+                                            <p>No documents with pending MRN status.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Panel: Spend Analytics Chart -->
+                            <div class="dashboard-panel chart-panel glass-card">
+                                <div class="panel-header">
+                                    <h2><i class="fa-solid fa-chart-line"></i> Spend Analytics</h2>
+                                </div>
+                                <div class="panel-body">
+                                    <div class="chart-wrapper">
+                                        <canvas id="vendorChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. DOCUMENT LEDGER TAB -->
+                <section id="tab-invoices" class="tab-content">
+                    <div class="ledger-controls glass-card">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="ledger-search" placeholder="Search by Doc No, Bill To, PO No...">
+                        </div>
+                        <div class="filter-actions">
+                            <!-- Synchronized workspace badge replaces active dropdown -->
+                            <div class="active-workspace-badge" id="ledger-company-badge">SK Agro</div>
+                            
+                            <select id="ledger-module-filter">
+                                <option value="Invoice">Invoices</option>
+                                <option value="Challan">Delivery Challans</option>
+                            </select>
+                            <select id="ledger-mrn-filter">
+                                <option value="all">All MRN Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="done">Done</option>
+                            </select>
+                            <button id="refresh-ledger-btn" class="btn btn-secondary-icon"><i class="fa-solid fa-rotate"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="table-container glass-card">
+                        <div class="table-scroll">
+                            <table id="ledger-table">
+                                <thead id="ledger-thead">
+                                    <!-- Populated dynamically -->
+                                </thead>
+                                <tbody id="ledger-body">
+                                    <tr class="table-placeholder">
+                                        <td colspan="19">
+                                            <div class="table-loading">
+                                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                                <p>Loading document ledger...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. UPLOAD CENTER TAB -->
+                <section id="tab-upload" class="tab-content">
+                    <div class="upload-container">
+                        <!-- Target Destination Card -->
+                        <div class="upload-config-card glass-card">
+                            <h3><i class="fa-solid fa-gears"></i> Target Destination</h3>
+                            <div class="upload-selectors">
+                                <div class="form-group">
+                                    <label>Target Company</label>
+                                    <!-- Active workspace badge replaces active dropdown -->
+                                    <div class="active-workspace-badge" id="upload-company-badge">SK Agro</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="upload-doc-type">Document Type</label>
+                                    <select id="upload-doc-type">
+                                        <option value="Invoice">Invoice</option>
+                                        <option value="Challan">Delivery Challan</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dropzone Area -->
+                        <div class="upload-dropzone glass-card" id="dropzone">
+                            <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp" style="display: none;">
+                            <div class="dropzone-illustration">
+                                <i class="fa-solid fa-file-arrow-up"></i>
+                            </div>
+                            <h3>Drag & Drop Document Here</h3>
+                            <p>Select a PDF or image file (PNG, JPG, WebP) up to 16MB</p>
+                            <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                                Select Document File
+                            </button>
+                        </div>
+                        
+                        <!-- Uploading Status -->
+                        <div class="upload-status-card glass-card" id="upload-status" style="display: none;">
+                            <div class="status-header">
+                                <h3 id="status-title"><i class="fa-solid fa-spinner fa-spin"></i> Extracting Document Data</h3>
+                                <span id="status-filename">invoice_copy.pdf</span>
+                            </div>
+                            <div class="progress-bar-wrapper">
+                                <div class="progress-bar-fill" id="status-progress-fill" style="width: 5%"></div>
+                            </div>
+                            <p class="status-msg" id="status-message">Uploading invoice to Azure Document Intelligence...</p>
+                        </div>
+
+                        <!-- Extracted Data Review Panel -->
+                        <div class="upload-review-card glass-card" id="upload-review" style="display: none;">
+                            <div class="review-header">
+                                <h2><i class="fa-solid fa-clipboard-check"></i> Extracted Metadata Review</h2>
+                                <p>Verify details parsed by Azure Document Intelligence. These will be automatically saved to your Excel sheets.</p>
+                            </div>
+                            <div class="review-form-grid" id="review-fields-container">
+                                <!-- Generated dynamically -->
+                            </div>
+                            <div class="review-actions">
+                                <button id="cancel-review-btn" class="btn btn-danger-icon"><i class="fa-solid fa-trash-can"></i> Discard</button>
+                                <button id="save-review-btn" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-down"></i> Save & Lock Ledger</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. SYSTEM SETTINGS TAB -->
+                <section id="tab-settings" class="tab-content">
+                    <div class="settings-wrapper">
+                        <!-- Access Control Credentials -->
+                        <div class="settings-card glass-card">
+                            <div class="settings-header">
+                                <h2><i class="fa-solid fa-shield-halved"></i> Access Control Settings</h2>
+                                <p>Modify user credentials. Changing the username or password requires confirming your current password.</p>
+                            </div>
+                            <div class="settings-body">
+                                <div class="input-group">
+                                    <label for="settings-admin-username">New Username</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-user-shield"></i>
+                                        <input type="text" id="settings-admin-username" placeholder="Enter new username">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="settings-admin-password">New Password</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-key"></i>
+                                        <input type="password" id="settings-admin-password" placeholder="Enter new password">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="settings-confirm-password">Confirm New Password</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-check-double"></i>
+                                        <input type="password" id="settings-confirm-password" placeholder="Confirm new password">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="settings-current-password" style="color: var(--danger);">Current Password *</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-lock" style="color: var(--danger);"></i>
+                                        <input type="password" id="settings-current-password" placeholder="Enter current password to authorize change">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API Configurations -->
+                        <div class="settings-card glass-card">
+                            <div class="settings-header">
+                                <h2><i class="fa-solid fa-key"></i> Azure Document Intelligence Settings</h2>
+                                <p>Provide endpoint and key details to enable structured data extraction from scanned documents.</p>
+                            </div>
+                            <div class="settings-body">
+                                <div class="input-group">
+                                    <label for="settings-azure-endpoint">Azure Endpoint URL</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-globe"></i>
+                                        <input type="text" id="settings-azure-endpoint" placeholder="https://your-resource.cognitiveservices.azure.com/">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="settings-azure-key">Azure API Key</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-lock"></i>
+                                        <input type="password" id="settings-azure-key" placeholder="Enter Azure Key">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Excel Sync Location -->
+                        <div class="settings-card glass-card">
+                            <div class="settings-header">
+                                <h2><i class="fa-solid fa-folder-open"></i> Excel Storage Location (OneDrive Sync)</h2>
+                                <p>Specify a local directory path to save the generated Excel files. Configure this to a synced <strong>Microsoft OneDrive</strong> or <strong>SharePoint</strong> folder to enable real-time collaboration.</p>
+                            </div>
+                            <div class="settings-body">
+                                <div class="input-group">
+                                    <label for="settings-excel-dir">Storage Directory Path</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-folder"></i>
+                                        <input type="text" id="settings-excel-dir" placeholder="e.g. C:\Users\Username\OneDrive\Invoices">
+                                    </div>
+                                    <p class="input-helper">Leave empty to store in the default application directory.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MS Teams Configurations -->
+                        <div class="settings-card glass-card">
+                            <div class="settings-header">
+                                <h2><i class="fa-brands fa-microsoft"></i> Microsoft Teams Webhook</h2>
+                                <p>Enable real-time workflow cards. Connect your channel via Incoming Webhook URL to get automated alerts on sequence gaps and pending MRNs.</p>
+                            </div>
+                            <div class="settings-body">
+                                <div class="input-group">
+                                    <label for="settings-teams-webhook">Incoming Webhook URL</label>
+                                    <div class="input-with-icon">
+                                        <i class="fa-solid fa-link"></i>
+                                        <input type="text" id="settings-teams-webhook" placeholder="https://outlook.office.com/webhook/...">
+                                    </div>
+                                </div>
+                                <div class="settings-action-row">
+                                    <button id="test-teams-btn" class="btn btn-secondary"><i class="fa-solid fa-paper-plane"></i> Send Test Notification</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-footer">
+                            <button id="save-settings-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Configurations</button>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- 1. DUPLICATE CONFLICT MODAL -->
+    <div id="duplicate-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box glass-card warning-border">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-triangle-exclamation"></i> Duplicate Entry Detected</h2>
+                <button class="modal-close" id="close-dup-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>A document with number <strong id="dup-invoice-no">TTE/26-27/1</strong> already exists for this company. Please review the comparison below before deciding to replace it or skip this upload.</p>
+                <div class="comparison-container">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Existing Value</th>
+                                <th class="highlight">Extracted Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dup-comparison-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="dup-skip-btn" class="btn btn-secondary">Skip Upload</button>
+                <button id="dup-replace-btn" class="btn btn-danger"><i class="fa-solid fa-rotate"></i> Replace Existing Record</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MRN & FIELD EDIT MODAL -->
+    <div id="edit-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box glass-card">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-pen-to-square"></i> Update Document Details</h2>
+                <button class="modal-close" id="close-edit-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="edit-form">
+                <input type="hidden" id="edit-invoice-no">
+                <div class="modal-body">
+                    <div class="review-form-grid">
+                        <div id="edit-mrn-section" class="span-2 review-form-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                            <div class="form-group">
+                                <label for="edit-mrn-status">MRN Status</label>
+                                <select id="edit-mrn-status">
+                                    <option value="PENDING">PENDING</option>
+                                    <option value="DONE">DONE</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-mrn-date">MRN Date</label>
+                                <input type="text" id="edit-mrn-date" placeholder="e.g. 05 June 2026">
+                            </div>
+                            <div class="form-group span-2">
+                                <label for="edit-mrn-no">MRN Number</label>
+                                <input type="text" id="edit-mrn-no" placeholder="e.g. LE/SZ000010/FP/26/INR/0383567">
+                            </div>
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="edit-remarks">Remarks</label>
+                            <textarea id="edit-remarks" placeholder="Add remarks or notes..." rows="2"></textarea>
+                        </div>
+                        
+                        <!-- Delivery Challan Specific Fields -->
+                        <div id="edit-challan-fields" class="span-2" style="display: none;">
+                            <hr class="panel-divider" style="margin: 16px 0;">
+                            <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px;"><i class="fa-solid fa-truck-ramp-box"></i> Delivery Challan Specific Data</h3>
+                            <div class="review-form-grid">
+                                <div class="form-group span-2">
+                                    <label for="edit-item-description">Item Description</label>
+                                    <textarea id="edit-item-description" rows="3" placeholder="Materials"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-deliver-qty">Deliver Qty</label>
+                                    <textarea id="edit-deliver-qty" rows="2" placeholder="Quantity list"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-uom">UOM</label>
+                                    <textarea id="edit-uom" rows="2" placeholder="UOM list"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-unit-price">Unit Price</label>
+                                    <textarea id="edit-unit-price" rows="2" placeholder="Unit Price list"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-po-qty">PO Qty</label>
+                                    <textarea id="edit-po-qty" rows="2" placeholder="PO Qty list"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-po-status">PO Status</label>
+                                    <select id="edit-po-status">
+                                        <option value="OPEN">OPEN</option>
+                                        <option value="CLOSED">CLOSED</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-invoice-no-val">Invoice Number</label>
+                                    <input type="text" id="edit-invoice-no-val" placeholder="Invoice No">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="edit-cancel-btn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Notification Toast -->
+    <div id="toast-notification" class="toast" style="display: none;">
+        <i id="toast-icon" class="fa-solid"></i>
+        <div class="toast-content">
+            <span id="toast-message">Notification message here</span>
+        </div>
+    </div>
+
+    <!-- Script Entry -->
+    <script src="app.js?v=2.0.2"></script>
+</body>
+</html>

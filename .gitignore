@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local Database
+invoices.db
+
+# Local Excel workbooks
+*.xlsx
+
+# Local uploads
+uploads/
+
+# Log files
+*.log
+
+# Editor configurations
+.jetro/
+.vs/
+.vscode/
