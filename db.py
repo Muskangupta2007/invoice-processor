@@ -294,6 +294,12 @@ def add_document(data):
     
     if success:
         sync_to_excel(company)
+        try:
+            import gsheet
+            import threading
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+        except Exception as e:
+            print(f"Error triggering gsheet sync in add_document: {e}")
     return success
 
 def update_document(company, doc_type, doc_no, data):
@@ -332,6 +338,12 @@ def update_document(company, doc_type, doc_no, data):
     
     if rows_affected > 0:
         sync_to_excel(company)
+        try:
+            import gsheet
+            import threading
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+        except Exception as e:
+            print(f"Error triggering gsheet sync in update_document: {e}")
         return True
     return False
 
@@ -350,6 +362,12 @@ def delete_document(company, doc_type, doc_no):
     
     if rows_affected > 0:
         sync_to_excel(company)
+        try:
+            import gsheet
+            import threading
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+        except Exception as e:
+            print(f"Error triggering gsheet sync in delete_document: {e}")
         return True
     return False
 
