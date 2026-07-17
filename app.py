@@ -71,6 +71,14 @@ def get_settings():
     excel_dir = db.get_setting("excel_storage_directory", "")
     admin_user = db.get_setting("admin_username", "admin")
     
+    # Google Sheets settings
+    gsheet_url_sk_agro = db.get_setting("gsheet_url_sk_agro", "")
+    gsheet_sync_url_sk_agro = db.get_setting("gsheet_sync_url_sk_agro", "")
+    gsheet_url_sk_electricals = db.get_setting("gsheet_url_sk_electricals", "")
+    gsheet_sync_url_sk_electricals = db.get_setting("gsheet_sync_url_sk_electricals", "")
+    gsheet_url_triotech = db.get_setting("gsheet_url_triotech", "")
+    gsheet_sync_url_triotech = db.get_setting("gsheet_sync_url_triotech", "")
+    
     masked_key = ""
     if api_key:
         masked_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:] if len(api_key) > 8 else "****"
@@ -81,7 +89,15 @@ def get_settings():
         "azure_api_key_masked": masked_key,
         "teams_webhook_url": webhook_url,
         "excel_storage_directory": excel_dir,
-        "admin_username": admin_user
+        "admin_username": admin_user,
+        
+        # Include Google Sheets settings in response
+        "gsheet_url_sk_agro": gsheet_url_sk_agro,
+        "gsheet_sync_url_sk_agro": gsheet_sync_url_sk_agro,
+        "gsheet_url_sk_electricals": gsheet_url_sk_electricals,
+        "gsheet_sync_url_sk_electricals": gsheet_sync_url_sk_electricals,
+        "gsheet_url_triotech": gsheet_url_triotech,
+        "gsheet_sync_url_triotech": gsheet_sync_url_triotech
     })
 
 @app.route('/api/settings', methods=['POST'])
@@ -92,6 +108,14 @@ def save_settings():
     api_key = data.get("azure_api_key")
     webhook_url = data.get("teams_webhook_url")
     excel_dir = data.get("excel_storage_directory")
+    
+    # Google Sheets settings from payload
+    gsheet_url_sk_agro = data.get("gsheet_url_sk_agro")
+    gsheet_sync_url_sk_agro = data.get("gsheet_sync_url_sk_agro")
+    gsheet_url_sk_electricals = data.get("gsheet_url_sk_electricals")
+    gsheet_sync_url_sk_electricals = data.get("gsheet_sync_url_sk_electricals")
+    gsheet_url_triotech = data.get("gsheet_url_triotech")
+    gsheet_sync_url_triotech = data.get("gsheet_sync_url_triotech")
     
     admin_user = data.get("admin_username")
     admin_pass = data.get("admin_password")
@@ -121,11 +145,38 @@ def save_settings():
     if excel_dir is not None:
         db.save_setting("excel_storage_directory", excel_dir.strip())
         
+    # Save Google Sheets settings
+    if gsheet_url_sk_agro is not None:
+        db.save_setting("gsheet_url_sk_agro", gsheet_url_sk_agro.strip())
+    if gsheet_sync_url_sk_agro is not None:
+        db.save_setting("gsheet_sync_url_sk_agro", gsheet_sync_url_sk_agro.strip())
+        
+    if gsheet_url_sk_electricals is not None:
+        db.save_setting("gsheet_url_sk_electricals", gsheet_url_sk_electricals.strip())
+    if gsheet_sync_url_sk_electricals is not None:
+        db.save_setting("gsheet_sync_url_sk_electricals", gsheet_sync_url_sk_electricals.strip())
+        
+    if gsheet_url_triotech is not None:
+        db.save_setting("gsheet_url_triotech", gsheet_url_triotech.strip())
+    if gsheet_sync_url_triotech is not None:
+        db.save_setting("gsheet_sync_url_triotech", gsheet_sync_url_triotech.strip())
+        
     try:
         db.sync_to_excel()
     except Exception as e:
         print(f"Error syncing excel files on settings change: {e}")
         
+    # Trigger initial push sync to Google Sheets if sync URLs were updated
+    import gsheet
+    import threading
+    for comp in db.COMPANIES:
+        comp_key = comp.lower().replace(' ', '_')
+        if data.get(f"gsheet_sync_url_{comp_key}") is not None and data.get(f"gsheet_sync_url_{comp_key}").strip() != "":
+            try:
+                threading.Thread(target=gsheet.sync_to_google_sheet, args=(comp,), daemon=True).start()
+            except Exception as e:
+                print(f"Error starting initial Google Sheets sync for {comp}: {e}")
+                
     return jsonify({"status": "success", "message": "Settings updated successfully."})
 
 @app.route('/api/settings/test-teams', methods=['POST'])

@@ -106,6 +106,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const testTeamsBtn = document.getElementById("test-teams-btn");
     const saveSettingsBtn = document.getElementById("save-settings-btn");
 
+    // Google Sheets Settings elements
+    const settingsGsheetUrlSkAgro = document.getElementById("settings-gsheet-url-sk-agro");
+    const settingsGsheetSyncUrlSkAgro = document.getElementById("settings-gsheet-sync-url-sk-agro");
+    const settingsGsheetUrlSkElectricals = document.getElementById("settings-gsheet-url-sk-electricals");
+    const settingsGsheetSyncUrlSkElectricals = document.getElementById("settings-gsheet-sync-url-sk-electricals");
+    const settingsGsheetUrlTriotech = document.getElementById("settings-gsheet-url-triotech");
+    const settingsGsheetSyncUrlTriotech = document.getElementById("settings-gsheet-sync-url-triotech");
+    
+    const viewGsheetInstructionsBtn = document.getElementById("view-gsheet-instructions-btn");
+    const gsheetInstructionsModal = document.getElementById("gsheet-instructions-modal");
+    const closeGsheetModal = document.getElementById("close-gsheet-modal");
+    const closeGsheetInstructionsBtn = document.getElementById("close-gsheet-instructions-btn");
+    const copyGsheetCodeBtn = document.getElementById("copy-gsheet-code-btn");
+    const gsheetScriptCode = document.getElementById("gsheet-script-code");
+
     // Modals
     const duplicateModal = document.getElementById("duplicate-modal");
     const closeDupModal = document.getElementById("close-dup-modal");
@@ -372,6 +387,15 @@ document.addEventListener("DOMContentLoaded", () => {
             e.preventDefault();
             const fileType = opt.getAttribute("data-type");
             const label = fileType === 'pending' ? "Pending MRNs" : "Main Ledger";
+            
+            // If Google Sheets is configured for the active company, open the live sheet in a new tab instead of downloading
+            const companyKey = state.activeCompany.toLowerCase().replace(' ', '_');
+            const gsheetUrl = state.settings[`gsheet_url_${companyKey}`];
+            if (gsheetUrl) {
+                showToast(`Opening ${state.activeCompany} live Google Sheet...`);
+                window.open(gsheetUrl, '_blank');
+                return;
+            }
             
             // Detect if browser is remote or local
             const localHostnames = ['localhost', '127.0.0.1', 'invoice.local', 'muskan'];
@@ -1376,6 +1400,14 @@ document.addEventListener("DOMContentLoaded", () => {
             settingsAzureKey.value = data.azure_api_key_masked || "";
             settingsExcelDir.value = data.excel_storage_directory || "";
             settingsTeamsWebhook.value = data.teams_webhook_url || "";
+            
+            // Load Google Sheets fields
+            settingsGsheetUrlSkAgro.value = data.gsheet_url_sk_agro || "";
+            settingsGsheetSyncUrlSkAgro.value = data.gsheet_sync_url_sk_agro || "";
+            settingsGsheetUrlSkElectricals.value = data.gsheet_url_sk_electricals || "";
+            settingsGsheetSyncUrlSkElectricals.value = data.gsheet_sync_url_sk_electricals || "";
+            settingsGsheetUrlTriotech.value = data.gsheet_url_triotech || "";
+            settingsGsheetSyncUrlTriotech.value = data.gsheet_sync_url_triotech || "";
         })
         .catch(err => console.error("Error loading settings:", err));
     }
@@ -1387,6 +1419,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const azure_key = settingsAzureKey.value.trim();
         const excel_dir = settingsExcelDir.value.trim();
         const teams_webhook = settingsTeamsWebhook.value.trim();
+        
+        // Google Sheets settings values
+        const gsheet_url_sk_agro = settingsGsheetUrlSkAgro.value.trim();
+        const gsheet_sync_url_sk_agro = settingsGsheetSyncUrlSkAgro.value.trim();
+        const gsheet_url_sk_electricals = settingsGsheetUrlSkElectricals.value.trim();
+        const gsheet_sync_url_sk_electricals = settingsGsheetSyncUrlSkElectricals.value.trim();
+        const gsheet_url_triotech = settingsGsheetUrlTriotech.value.trim();
+        const gsheet_sync_url_triotech = settingsGsheetSyncUrlTriotech.value.trim();
         
         const settingsConfirmPassword = document.getElementById("settings-confirm-password");
         const settingsCurrentPassword = document.getElementById("settings-current-password");
@@ -1418,6 +1458,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (azure_key) payload.azure_api_key = azure_key;
         if (excel_dir !== undefined) payload.excel_storage_directory = excel_dir;
         if (teams_webhook !== undefined) payload.teams_webhook_url = teams_webhook;
+
+        // Save Google Sheets values to payload
+        if (gsheet_url_sk_agro !== undefined) payload.gsheet_url_sk_agro = gsheet_url_sk_agro;
+        if (gsheet_sync_url_sk_agro !== undefined) payload.gsheet_sync_url_sk_agro = gsheet_sync_url_sk_agro;
+        if (gsheet_url_sk_electricals !== undefined) payload.gsheet_url_sk_electricals = gsheet_url_sk_electricals;
+        if (gsheet_sync_url_sk_electricals !== undefined) payload.gsheet_sync_url_sk_electricals = gsheet_sync_url_sk_electricals;
+        if (gsheet_url_triotech !== undefined) payload.gsheet_url_triotech = gsheet_url_triotech;
+        if (gsheet_sync_url_triotech !== undefined) payload.gsheet_sync_url_triotech = gsheet_sync_url_triotech;
 
         fetch("/api/settings", {
             method: "POST",
@@ -1479,6 +1527,124 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Teams test error:", err);
             showToast("Failed to send Teams test.", "danger");
         });
+    });
+
+    // Google Sheets Script and Instructions Modal Events
+    const GOOGLE_APPS_SCRIPT_CODE = `// Google Sheets Collaboration Script for InvoSync
+// Paste this in extensions > Apps Script editor in your spreadsheet.
+
+function doGet(e) {
+  var action = e.parameter.action;
+  if (action === "read") {
+    return ContentService.createTextOutput(JSON.stringify(readSheetData()))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var sheetUrl = SpreadsheetApp.getActiveSpreadsheet().getUrl();
+  return HtmlService.createHtmlOutput("<script>window.top.location.href='" + sheetUrl + "';</script>Redirecting to Google Sheet...");
+}
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var action = payload.action;
+    if (action === "write") {
+      var invoices = payload.invoices || [];
+      var challans = payload.challans || [];
+      var pending = payload.pending || [];
+      writeSheetData("Invoices", invoices);
+      writeSheetData("Delivery Challans", challans);
+      writeSheetData("Pending MRNs", pending);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Sheets updated successfully" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function readSheetData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = { invoices: [], challans: [] };
+  var invSheet = ss.getSheetByName("Invoices");
+  if (invSheet) data.invoices = getRowsData(invSheet);
+  var chalSheet = ss.getSheetByName("Delivery Challans");
+  if (chalSheet) data.challans = getRowsData(chalSheet);
+  return data;
+}
+
+function getRowsData(sheet) {
+  var rows = [];
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return rows;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  for (var i = 0; i < values.length; i++) {
+    var row = {};
+    for (var j = 0; j < headers.length; j++) {
+      var header = headers[j];
+      if (header) row[header] = values[i][j];
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function writeSheetData(sheetName, dataList) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  var cols = [];
+  if (sheetName === "Invoices") {
+    cols = [
+      'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
+      'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
+      'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+    ];
+  } else if (sheetName === "Delivery Challans") {
+    cols = [
+      'S.No', 'Delivery Challan No', 'Item Description', 'Deliver Qty', 'UOM',
+      'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+      'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 
+      'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+    ];
+  } else if (sheetName === "Pending MRNs") {
+    cols = ['Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'];
+  }
+  if (!sheet) sheet = ss.insertSheet(sheetName);
+  sheet.clear();
+  sheet.appendRow(cols);
+  if (dataList.length === 0) return;
+  var rowsToWrite = [];
+  for (var idx = 0; idx < dataList.length; idx++) {
+    var doc = dataList[idx];
+    var row = [];
+    for (var c = 0; c < cols.length; c++) {
+      row.push(doc[cols[c]] !== undefined && doc[cols[c]] !== null ? doc[cols[c]] : "");
+    }
+    rowsToWrite.push(row);
+  }
+  sheet.getRange(2, 1, rowsToWrite.length, cols.length).setValues(rowsToWrite);
+  sheet.getRange(2, 1, rowsToWrite.length, cols.length).setWrap(true).setVerticalAlignment("top");
+  sheet.getRange(1, 1, 1, cols.length).setFontWeight("bold").setBackground("#f3f3f3");
+}`;
+
+    viewGsheetInstructionsBtn.addEventListener("click", () => {
+        gsheetScriptCode.value = GOOGLE_APPS_SCRIPT_CODE;
+        gsheetInstructionsModal.style.display = "flex";
+    });
+
+    const closeGsheetInstructions = () => {
+        gsheetInstructionsModal.style.display = "none";
+    };
+
+    closeGsheetModal.addEventListener("click", closeGsheetInstructions);
+    closeGsheetInstructionsBtn.addEventListener("click", closeGsheetInstructions);
+
+    copyGsheetCodeBtn.addEventListener("click", () => {
+        gsheetScriptCode.select();
+        document.execCommand("copy");
+        showToast("Google Apps Script code copied to clipboard!");
     });
 
     // Initial page load check

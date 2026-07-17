@@ -395,8 +395,8 @@ def calculate_difference(del_qty_str, po_qty_str):
 
 def sync_to_excel(company=None, sync_main=True, sync_pending=True):
     """
-    Syncs SQLite records. In-place updates the {Company}.xlsx file
-    (with Invoices & Delivery Challans sheets, keeping custom formatting/user edits)
+    Syncs SQLite records. Overwrites the {Company}.xlsx file
+    (with Invoices & Delivery Challans sheets)
     and {Company}_Pending_MRN.xlsx (with pending MRN list).
     """
     companies_to_sync = [company] if company else COMPANIES
@@ -409,17 +409,18 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
         invoices = [d for d in all_docs if d['doc_type'] == 'Invoice']
         challans = [d for d in all_docs if d['doc_type'] == 'Challan']
         
-        # Column headers definitions (including MRN fields)
+        # Column headers definitions (including MRN fields and Item Description for Invoices)
         cols_inv = [
             'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
-            'PO/WO No', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
+            'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
             'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
         ]
         
         cols_chal = [
             'S.No', 'Delivery Challan No', 'Item Description', 'Deliver Qty', 'UOM',
             'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
-            'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 'Remarks'
+            'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 
+            'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
         ]
         
         # 1. Update / Create Main Excel File
@@ -443,151 +444,148 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
             if 'Sheet' in wb.sheetnames and len(wb.sheetnames) > 1:
                 wb.remove(wb['Sheet'])
                 
-            for sheet_name, cols, docs, key_col_idx, doc_key_field in [
-                ('Invoices', cols_inv, invoices, 1, 'doc_no'),  # key is Invoice No (index 1)
-                ('Delivery Challans', cols_chal, challans, 1, 'doc_no')  # key is Delivery Challan No (index 1)
+            for sheet_name, cols, docs in [
+                ('Invoices', cols_inv, invoices),
+                ('Delivery Challans', cols_chal, challans)
             ]:
                 # Ensure sheet exists
                 if sheet_name not in wb.sheetnames:
                     ws = wb.create_sheet(title=sheet_name)
-                    ws.append(cols)
                 else:
                     ws = wb[sheet_name]
                     
-                # If default sheet is still there and we created other sheets, remove it
-                if 'Sheet' in wb.sheetnames:
-                    try:
-                        wb.remove(wb['Sheet'])
-                    except Exception:
-                        pass
-                    
-                # Read current sheet rows to find which key corresponds to which row index
-                existing_row_map = {}  # { doc_no: row_index }
-                
-                # Check if headers match. If the sheet headers are empty or totally different, overwrite them
-                headers_match = True
-                for col_idx, col_name in enumerate(cols, 1):
-                    if ws.cell(row=1, column=col_idx).value != col_name:
-                        headers_match = False
-                        break
-                
-                if not headers_match:
-                    ws.delete_rows(1, ws.max_row + 1)
-                    ws.append(cols)
-                else:
-                    for r_idx in range(2, ws.max_row + 1):
-                        key_val = ws.cell(row=r_idx, column=key_col_idx + 1).value
-                        if key_val is not None:
-                            k_str = str(key_val).strip()
-                            if k_str not in existing_row_map:
-                                existing_row_map[k_str] = r_idx
+                # Clear all contents
+                ws.delete_rows(1, ws.max_row + 1)
+                ws.append(cols)
                 
                 # Sort SQLite docs ascending by ID (to maintain order)
                 sorted_docs = sorted(docs, key=lambda x: x['id'])
-                active_keys = set()
                 
-                for idx, doc in enumerate(sorted_docs, 1):
-                    doc_key = str(doc.get(doc_key_field, '')).strip()
-                    if not doc_key:
-                        continue
-                    active_keys.add(doc_key)
-                    
-                    # Map SQLite values to cols
-                    row_data = []
-                    for col in cols:
-                        if col == 'S.No':
-                            row_data.append(idx)
-                        elif col == 'Invoice No' or col == 'Delivery Challan No':
-                            row_data.append(doc.get('doc_no', ''))
-                        elif col == 'Invoice Date' or col == 'Delivery Date':
-                            row_data.append(doc.get('doc_date', ''))
-                        elif col == 'Challan No':
-                            row_data.append(doc.get('challan_no', ''))
-                        elif col == 'Bill To':
-                            row_data.append(doc.get('bill_to', ''))
-                        elif col == 'PO/WO No' or col == 'PO Number':
-                            row_data.append(doc.get('po_wo_no', ''))
-                        elif col == 'Invoice Amt':
-                            row_data.append(doc.get('amount', 0.0))
-                        elif col == 'Eway Bill':
-                            row_data.append(doc.get('eway_bill', ''))
-                        elif col == 'ASN No':
-                            row_data.append(doc.get('asn_no', ''))
-                        elif col == 'Mode of Transp':
-                            row_data.append(doc.get('mode_of_transp', ''))
-                        elif col == 'Dock Code':
-                            row_data.append(doc.get('dock_code', ''))
-                        elif col == 'Delivery Site' or col == 'Delivery Location':
-                            row_data.append(doc.get('delivery_site', ''))
-                        elif col == 'MRN Status':
-                            row_data.append(doc.get('mrn_status', 'PENDING'))
-                        elif col == 'MRN Date':
-                            row_data.append(doc.get('mrn_date', ''))
-                        elif col == 'MRN No':
-                            row_data.append(doc.get('mrn_no', ''))
-                        elif col == 'Remarks':
-                            row_data.append(doc.get('remarks', ''))
-                        elif col == 'Item Description':
-                            row_data.append(doc.get('item_description', ''))
-                        elif col == 'Deliver Qty':
-                            row_data.append(doc.get('deliver_qty', ''))
-                        elif col == 'UOM':
-                            row_data.append(doc.get('uom', ''))
-                        elif col == 'Unit Price':
-                            row_data.append(doc.get('unit_price', ''))
-                        elif col == 'PO Status':
-                            row_data.append(doc.get('po_status', ''))
-                        elif col == 'PO Qty':
-                            row_data.append(doc.get('po_qty', ''))
-                        elif col == 'Difference Between Delivery & PO Qty':
-                            row_data.append(calculate_difference(doc.get('deliver_qty'), doc.get('po_qty')))
-                        elif col == 'Invoice Number':
-                            row_data.append(doc.get('invoice_no', ''))
-                        else:
-                            row_data.append('')
-                    
-                    if doc_key in existing_row_map:
-                        target_row = existing_row_map[doc_key]
-                        for col_idx, val in enumerate(row_data, 1):
-                            cell = ws.cell(row=target_row, column=col_idx)
-                            cell.value = val
-                            if isinstance(val, str) and '\n' in val:
-                                cell.alignment = Alignment(wrap_text=True, vertical='top')
-                    else:
+                row_idx_counter = 1
+                for doc in sorted_docs:
+                    if sheet_name == 'Invoices':
+                        row_data = []
+                        for col in cols:
+                            if col == 'S.No':
+                                row_data.append(row_idx_counter)
+                            elif col == 'Invoice No':
+                                row_data.append(doc.get('doc_no', ''))
+                            elif col == 'Invoice Date':
+                                row_data.append(doc.get('doc_date', ''))
+                            elif col == 'Challan No':
+                                row_data.append(doc.get('challan_no', ''))
+                            elif col == 'Bill To':
+                                row_data.append(doc.get('bill_to', ''))
+                            elif col == 'PO/WO No':
+                                row_data.append(doc.get('po_wo_no', ''))
+                            elif col == 'Item Description':
+                                row_data.append(doc.get('item_description', ''))
+                            elif col == 'Invoice Amt':
+                                row_data.append(doc.get('amount', 0.0))
+                            elif col == 'Eway Bill':
+                                row_data.append(doc.get('eway_bill', ''))
+                            elif col == 'ASN No':
+                                row_data.append(doc.get('asn_no', ''))
+                            elif col == 'Mode of Transp':
+                                row_data.append(doc.get('mode_of_transp', ''))
+                            elif col == 'Dock Code':
+                                row_data.append(doc.get('dock_code', ''))
+                            elif col == 'Delivery Date':
+                                row_data.append(doc.get('delivery_date', ''))
+                            elif col == 'Delivery Site':
+                                row_data.append(doc.get('delivery_site', ''))
+                            elif col == 'MRN Status':
+                                row_data.append(doc.get('mrn_status', 'PENDING'))
+                            elif col == 'MRN Date':
+                                row_data.append(doc.get('mrn_date', ''))
+                            elif col == 'MRN No':
+                                row_data.append(doc.get('mrn_no', ''))
+                            elif col == 'Remarks':
+                                row_data.append(doc.get('remarks', ''))
+                            else:
+                                row_data.append('')
                         ws.append(row_data)
-                        new_row_idx = ws.max_row
-                        for col_idx, val in enumerate(row_data, 1):
-                            if isinstance(val, str) and '\n' in val:
-                                ws.cell(row=new_row_idx, column=col_idx).alignment = Alignment(wrap_text=True, vertical='top')
-                
-                # Clean up deleted records and duplicate rows
-                seen_keys = set()
-                rows_to_delete = []
-                for r_idx in range(2, ws.max_row + 1):
-                    key_val = ws.cell(row=r_idx, column=key_col_idx + 1).value
-                    if key_val is not None:
-                        k_str = str(key_val).strip()
-                        if not k_str or k_str not in active_keys or k_str in seen_keys:
-                            rows_to_delete.append(r_idx)
-                        else:
-                            seen_keys.add(k_str)
+                        row_idx_counter += 1
                     else:
-                        rows_to_delete.append(r_idx)
-                
-                for r_idx in sorted(rows_to_delete, reverse=True):
-                    ws.delete_rows(r_idx, 1)
+                        # Delivery Challans: split multi-line values into separate rows
+                        items = str(doc.get('item_description') or '').split('\n')
+                        qtys = str(doc.get('deliver_qty') or '').split('\n')
+                        uoms = str(doc.get('uom') or '').split('\n')
+                        prices = str(doc.get('unit_price') or '').split('\n')
+                        po_qtys = str(doc.get('po_qty') or '').split('\n')
+                        
+                        max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys))
+                        max_len = max(max_len, 1)
+                        
+                        items += [''] * (max_len - len(items))
+                        qtys += [''] * (max_len - len(qtys))
+                        uoms += [''] * (max_len - len(uoms))
+                        prices += [''] * (max_len - len(prices))
+                        po_qtys += [''] * (max_len - len(po_qtys))
+                        
+                        for i in range(max_len):
+                            row_data = []
+                            for col in cols:
+                                if col == 'S.No':
+                                    row_data.append(row_idx_counter)
+                                elif col == 'Delivery Challan No':
+                                    row_data.append(doc.get('doc_no', ''))
+                                elif col == 'Item Description':
+                                    row_data.append(items[i])
+                                elif col == 'Deliver Qty':
+                                    row_data.append(qtys[i])
+                                elif col == 'UOM':
+                                    row_data.append(uoms[i])
+                                elif col == 'Unit Price':
+                                    row_data.append(prices[i])
+                                elif col == 'Delivery Date':
+                                    row_data.append(doc.get('doc_date', ''))
+                                elif col == 'Delivery Location':
+                                    row_data.append(doc.get('delivery_site', ''))
+                                elif col == 'PO Status':
+                                    row_data.append(doc.get('po_status', ''))
+                                elif col == 'PO Number':
+                                    row_data.append(doc.get('po_wo_no', ''))
+                                elif col == 'PO Qty':
+                                    row_data.append(po_qtys[i])
+                                elif col == 'Difference Between Delivery & PO Qty':
+                                    d_val = 0.0
+                                    p_val = 0.0
+                                    try:
+                                        if qtys[i]:
+                                            d_val = float(qtys[i].replace(',', '').strip())
+                                    except ValueError:
+                                        pass
+                                    try:
+                                        if po_qtys[i]:
+                                            p_val = float(po_qtys[i].replace(',', '').strip())
+                                    except ValueError:
+                                        pass
+                                    diff = d_val - p_val
+                                    diff_str = str(int(diff)) if diff.is_integer() else f"{diff:.2f}"
+                                    row_data.append(diff_str)
+                                elif col == 'Invoice Number':
+                                    row_data.append(doc.get('invoice_no', ''))
+                                elif col == 'MRN Status':
+                                    row_data.append(doc.get('mrn_status', 'PENDING'))
+                                elif col == 'MRN Date':
+                                    row_data.append(doc.get('mrn_date', ''))
+                                elif col == 'MRN No':
+                                    row_data.append(doc.get('mrn_no', ''))
+                                elif col == 'Remarks':
+                                    row_data.append(doc.get('remarks', ''))
+                                else:
+                                    row_data.append('')
+                            ws.append(row_data)
+                            row_idx_counter += 1
                             
-                # Recalculate S.No
-                for r_idx in range(2, ws.max_row + 1):
-                    ws.cell(row=r_idx, column=1, value=r_idx - 1)
-                    
-                # Formatting line wrap for all rows with newlines in the sheets
+                # Formatting line wrap for cells with newlines
                 for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
                     for cell in row:
                         if cell.value and isinstance(cell.value, str) and '\n' in cell.value:
                             cell.alignment = Alignment(wrap_text=True, vertical='top')
                             
-                # Auto-fit column widths to prevent text wrapping and visual misalignment
+                # Auto-fit column widths
                 from openpyxl.utils import get_column_letter
                 for col in ws.columns:
                     max_len = 0
@@ -598,9 +596,8 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                                 if len(line) > max_len:
                                     max_len = len(line)
                     col_letter = get_column_letter(col[0].column)
-                    # Set dynamic column width with a minimum of 10 and safety cap at 100
                     ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 100)
-                            
+                    
             try:
                 import tempfile
                 import shutil
@@ -611,7 +608,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 wb.save(temp_path)
                 wb.close()
                 
-                # Atomic replacement to prevent OneDrive file sync conflicts/corruption
+                # Atomic replacement
                 shutil.move(temp_path, main_excel_path)
                 last_written_mtime[main_excel_path] = os.path.getmtime(main_excel_path)
             except PermissionError as e:
@@ -675,7 +672,6 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 with pd.ExcelWriter(temp_path, engine='openpyxl') as writer:
                     df_pending.to_excel(writer, sheet_name='Pending MRNs', index=False)
                     
-                # Atomic replacement to prevent OneDrive file sync conflicts/corruption
                 shutil.move(temp_path, pending_excel_path)
                 last_written_mtime[pending_excel_path] = os.path.getmtime(pending_excel_path)
             except PermissionError as e:
@@ -721,6 +717,7 @@ def sync_from_excel():
                     'Challan No': 'challan_no',
                     'Bill To': 'bill_to',
                     'PO/WO No': 'po_wo_no',
+                    'Item Description': 'item_description',
                     'Invoice Amt': 'amount',
                     'Eway Bill': 'eway_bill',
                     'ASN No': 'asn_no',
@@ -755,7 +752,7 @@ def sync_from_excel():
                         values = tuple(row_dict.values())
                         cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
             
-            # Read Delivery Challans Sheet
+            # Read Delivery Challans Sheet (Group item-by-item rows back to single records)
             if 'Delivery Challans' in xls.sheet_names:
                 df_chal = pd.read_excel(main_excel_path, sheet_name='Delivery Challans')
                 excel_to_db_chal = {
@@ -781,19 +778,58 @@ def sync_from_excel():
                 
                 if 'doc_no' in df_chal.columns:
                     df_chal = df_chal.dropna(subset=['doc_no'])
+                    
+                    grouped_docs = {}
                     for _, row in df_chal.iterrows():
                         row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
-                        row_dict['company'] = comp
-                        row_dict['doc_type'] = 'Challan'
+                        doc_no = str(row_dict.get('doc_no', '')).strip()
+                        if not doc_no:
+                            continue
+                        if doc_no not in grouped_docs:
+                            grouped_docs[doc_no] = {
+                                'doc_no': doc_no,
+                                'doc_date': row_dict.get('delivery_date'),
+                                'invoice_no': row_dict.get('invoice_no'),
+                                'challan_no': doc_no,
+                                'bill_to': row_dict.get('bill_to') or 'LARSEN & TOUBRO',
+                                'po_wo_no': row_dict.get('po_wo_no'),
+                                'delivery_site': row_dict.get('delivery_site'),
+                                'po_status': row_dict.get('po_status'),
+                                'mrn_status': row_dict.get('mrn_status') or 'PENDING',
+                                'mrn_date': row_dict.get('mrn_date'),
+                                'mrn_no': row_dict.get('mrn_no'),
+                                'remarks': row_dict.get('remarks'),
+                                '_items': [], '_qtys': [], '_uoms': [], '_prices': [], '_po_qtys': []
+                            }
+                        gd = grouped_docs[doc_no]
+                        gd['_items'].append(str(row_dict.get('item_description') or '').strip())
+                        gd['_qtys'].append(str(row_dict.get('deliver_qty') or '').strip())
+                        gd['_uoms'].append(str(row_dict.get('uom') or '').strip())
+                        gd['_prices'].append(str(row_dict.get('unit_price') or '').strip())
+                        gd['_po_qtys'].append(str(row_dict.get('po_qty') or '').strip())
+                        
+                    for doc_no, gd in grouped_docs.items():
+                        gd['item_description'] = "\n".join(gd['_items'])
+                        gd['deliver_qty'] = "\n".join(gd['_qtys'])
+                        gd['uom'] = "\n".join(gd['_uoms'])
+                        gd['unit_price'] = "\n".join(gd['_prices'])
+                        gd['po_qty'] = "\n".join(gd['_po_qtys'])
+                        
+                        for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys']:
+                            del gd[k]
+                            
+                        gd['company'] = comp
+                        gd['doc_type'] = 'Challan'
+                        gd['amount'] = 0.0
                         
                         # Clean fields
                         for f in ['deliver_qty', 'uom', 'unit_price', 'po_qty']:
-                            if f in row_dict and row_dict[f] is not None:
-                                row_dict[f] = str(row_dict[f])
+                            if f in gd and gd[f] is not None:
+                                gd[f] = str(gd[f])
                                 
-                        placeholders = ", ".join(["?"] * len(row_dict))
-                        columns = ", ".join(row_dict.keys())
-                        values = tuple(row_dict.values())
+                        placeholders = ", ".join(["?"] * len(gd))
+                        columns = ", ".join(gd.keys())
+                        values = tuple(gd.values())
                         cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
                         
             conn.commit()
@@ -874,6 +910,7 @@ def sync_excel_to_db(company):
                 'Challan No': 'challan_no',
                 'Bill To': 'bill_to',
                 'PO/WO No': 'po_wo_no',
+                'Item Description': 'item_description',
                 'Invoice Amt': 'amount',
                 'Eway Bill': 'eway_bill',
                 'ASN No': 'asn_no',
@@ -908,7 +945,7 @@ def sync_excel_to_db(company):
                     values = tuple(row_dict.values())
                     cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
         
-        # Read Delivery Challans Sheet
+        # Read Delivery Challans Sheet (Group itemized rows back to single records)
         if 'Delivery Challans' in xls.sheet_names:
             df_chal = pd.read_excel(main_excel_path, sheet_name='Delivery Challans')
             excel_to_db_chal = {
@@ -923,6 +960,9 @@ def sync_excel_to_db(company):
                 'PO Number': 'po_wo_no',
                 'PO Qty': 'po_qty',
                 'Invoice Number': 'invoice_no',
+                'MRN Status': 'mrn_status',
+                'MRN Date': 'mrn_date',
+                'MRN No': 'mrn_no',
                 'Remarks': 'remarks'
             }
             df_chal = df_chal.rename(columns=excel_to_db_chal)
@@ -931,19 +971,58 @@ def sync_excel_to_db(company):
             
             if 'doc_no' in df_chal.columns:
                 df_chal = df_chal.dropna(subset=['doc_no'])
+                
+                grouped_docs = {}
                 for _, row in df_chal.iterrows():
                     row_dict = {k: (None if pd.isna(v) else v) for k, v in row.items()}
-                    row_dict['company'] = company
-                    row_dict['doc_type'] = 'Challan'
+                    doc_no = str(row_dict.get('doc_no', '')).strip()
+                    if not doc_no:
+                        continue
+                    if doc_no not in grouped_docs:
+                        grouped_docs[doc_no] = {
+                            'doc_no': doc_no,
+                            'doc_date': row_dict.get('delivery_date'),
+                            'invoice_no': row_dict.get('invoice_no'),
+                            'challan_no': doc_no,
+                            'bill_to': row_dict.get('bill_to') or 'LARSEN & TOUBRO',
+                            'po_wo_no': row_dict.get('po_wo_no'),
+                            'delivery_site': row_dict.get('delivery_site'),
+                            'po_status': row_dict.get('po_status'),
+                            'mrn_status': row_dict.get('mrn_status') or 'PENDING',
+                            'mrn_date': row_dict.get('mrn_date'),
+                            'mrn_no': row_dict.get('mrn_no'),
+                            'remarks': row_dict.get('remarks'),
+                            '_items': [], '_qtys': [], '_uoms': [], '_prices': [], '_po_qtys': []
+                        }
+                    gd = grouped_docs[doc_no]
+                    gd['_items'].append(str(row_dict.get('item_description') or '').strip())
+                    gd['_qtys'].append(str(row_dict.get('deliver_qty') or '').strip())
+                    gd['_uoms'].append(str(row_dict.get('uom') or '').strip())
+                    gd['_prices'].append(str(row_dict.get('unit_price') or '').strip())
+                    gd['_po_qtys'].append(str(row_dict.get('po_qty') or '').strip())
+                    
+                for doc_no, gd in grouped_docs.items():
+                    gd['item_description'] = "\n".join(gd['_items'])
+                    gd['deliver_qty'] = "\n".join(gd['_qtys'])
+                    gd['uom'] = "\n".join(gd['_uoms'])
+                    gd['unit_price'] = "\n".join(gd['_prices'])
+                    gd['po_qty'] = "\n".join(gd['_po_qtys'])
+                    
+                    for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys']:
+                        del gd[k]
+                        
+                    gd['company'] = company
+                    gd['doc_type'] = 'Challan'
+                    gd['amount'] = 0.0
                     
                     # Clean fields
                     for f in ['deliver_qty', 'uom', 'unit_price', 'po_qty']:
-                         if f in row_dict and row_dict[f] is not None:
-                             row_dict[f] = str(row_dict[f])
+                         if f in gd and gd[f] is not None:
+                             gd[f] = str(gd[f])
                              
-                    placeholders = ", ".join(["?"] * len(row_dict))
-                    columns = ", ".join(row_dict.keys())
-                    values = tuple(row_dict.values())
+                    placeholders = ", ".join(["?"] * len(gd))
+                    columns = ", ".join(gd.keys())
+                    values = tuple(gd.values())
                     cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
                     
         conn.commit()
@@ -968,17 +1047,33 @@ def start_excel_watcher():
                     print(f"[Watcher] Error in initial startup sync for {comp}: {e}")
                     
         # Populate initial mtimes
-        directory = get_excel_storage_dir()
         for comp in COMPANIES:
             main_path = get_company_excel_path(comp, 'main')
             if os.path.exists(main_path):
                 last_known_mtime[main_path] = os.path.getmtime(main_path)
                 
+        # Google Sheet polling times tracking
+        last_gsheet_poll = {comp: 0 for comp in COMPANIES}
+                
         # Watcher loop
         while True:
             time.sleep(2.0)
+            now = time.time()
+            
+            # --- Google Sheets Periodic Sync Check (runs every 30 seconds) ---
+            for comp in COMPANIES:
+                sync_url = get_setting(f"gsheet_sync_url_{comp.lower().replace(' ', '_')}")
+                if sync_url and (now - last_gsheet_poll[comp] > 30.0):
+                    last_gsheet_poll[comp] = now
+                    try:
+                        import gsheet
+                        # Run Google Sheet pull in a background thread to prevent blocking
+                        threading.Thread(target=gsheet.sync_from_google_sheet, args=(comp,), daemon=True).start()
+                    except Exception as ex:
+                        print(f"[Watcher] Failed to trigger Google Sheet pull for {comp}: {ex}")
+            
+            # --- Local Excel File Watcher ---
             try:
-                directory = get_excel_storage_dir()
                 for comp in COMPANIES:
                     main_path = get_company_excel_path(comp, 'main')
                     if os.path.exists(main_path):

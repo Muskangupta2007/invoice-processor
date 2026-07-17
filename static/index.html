@@ -502,6 +502,74 @@
                             </div>
                         </div>
 
+                        <!-- Google Sheets Collaboration -->
+                        <div class="settings-card glass-card">
+                            <div class="settings-header">
+                                <h2><i class="fa-regular fa-file-excel"></i> Google Sheets Collaboration (Live Cloud Excel)</h2>
+                                <p>Enable real-time cloud spreadsheet editing. Configure the Google Sheet browser URL and Google Apps Script Web App Sync URL for each company to bypass downloads and sync edits instantly back to the ledger.</p>
+                            </div>
+                            <div class="settings-body">
+                                <!-- Setup Instructions Trigger -->
+                                <div class="settings-action-row" style="margin-bottom: 20px;">
+                                    <button id="view-gsheet-instructions-btn" class="btn btn-secondary" style="width: 100%; text-align: center;"><i class="fa-solid fa-circle-info"></i> View Google Sheets Setup Guide & Apps Script Code</button>
+                                </div>
+
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">SK Agro Live Sync Settings</h3>
+                                <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-url-sk-agro">Google Sheet Browser URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-globe"></i>
+                                            <input type="text" id="settings-gsheet-url-sk-agro" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-sync-url-sk-agro">Sync Web App URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                                            <input type="text" id="settings-gsheet-sync-url-sk-agro" placeholder="https://script.google.com/macros/s/.../exec">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">SK Electricals Live Sync Settings</h3>
+                                <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-url-sk-electricals">Google Sheet Browser URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-globe"></i>
+                                            <input type="text" id="settings-gsheet-url-sk-electricals" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-sync-url-sk-electricals">Sync Web App URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                                            <input type="text" id="settings-gsheet-sync-url-sk-electricals" placeholder="https://script.google.com/macros/s/.../exec">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">Triotech Live Sync Settings</h3>
+                                <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-url-triotech">Google Sheet Browser URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-globe"></i>
+                                            <input type="text" id="settings-gsheet-url-triotech" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="settings-gsheet-sync-url-triotech">Sync Web App URL</label>
+                                        <div class="input-with-icon">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                                            <input type="text" id="settings-gsheet-sync-url-triotech" placeholder="https://script.google.com/macros/s/.../exec">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="settings-footer">
                             <button id="save-settings-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Configurations</button>
                         </div>
@@ -621,6 +689,45 @@
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Changes</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- 3. GOOGLE APPS SCRIPT INSTRUCTIONS MODAL -->
+    <div id="gsheet-instructions-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box glass-card" style="max-width: 650px; width: 90%;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-circle-info"></i> Google Sheets Sync Setup Guide</h2>
+                <button class="modal-close" id="close-gsheet-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <ol style="margin-left: 20px; margin-bottom: 20px; line-height: 1.6; color: rgba(255,255,255,0.85);">
+                    <li style="margin-bottom: 8px;">Create a new Google Sheet for your company.</li>
+                    <li style="margin-bottom: 8px;">Add three sheets (tabs) named exactly: <strong>Invoices</strong>, <strong>Delivery Challans</strong>, and <strong>Pending MRNs</strong>.</li>
+                    <li style="margin-bottom: 8px;">From the top menu, go to <strong>Extensions</strong> &rarr; <strong>Apps Script</strong>.</li>
+                    <li style="margin-bottom: 8px;">Delete any code in the editor, copy the script snippet below, and paste it into the editor.</li>
+                    <li style="margin-bottom: 8px;">Click <strong>Save</strong> (floppy icon) and rename the project to <code>InvoSync Sync Service</code>.</li>
+                    <li style="margin-bottom: 8px;">Click <strong>Deploy</strong> (top-right) &rarr; <strong>New deployment</strong>.</li>
+                    <li style="margin-bottom: 8px;">Click the gear icon next to "Select type", and select <strong>Web app</strong>.</li>
+                    <li style="margin-bottom: 8px;">Configure deployment settings:
+                        <ul style="margin-left: 20px; margin-top: 4px;">
+                            <li>Execute as: <strong>Me (your email)</strong></li>
+                            <li>Who has access: <strong>Anyone</strong></li>
+                        </ul>
+                    </li>
+                    <li style="margin-bottom: 8px;">Click <strong>Deploy</strong>. Grant permissions and click through warnings (Advanced &rarr; Go to project).</li>
+                    <li style="margin-bottom: 8px;">Copy the generated <strong>Web App URL</strong> (ends in <code>/exec</code>) and paste it into the "Sync Web App URL" field for the corresponding company below.</li>
+                </ol>
+                <div class="form-group">
+                    <label for="gsheet-script-code" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: var(--primary); font-weight: 600;">
+                        <span>Apps Script Code Snippet</span>
+                        <button id="copy-gsheet-code-btn" class="btn btn-secondary btn-sm" style="padding: 4px 10px; font-size: 11px;"><i class="fa-solid fa-copy"></i> Copy Code</button>
+                    </label>
+                    <textarea id="gsheet-script-code" readonly rows="12" style="font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.3); color: #fff; width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; box-sizing: border-box; resize: none;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="close-gsheet-instructions-btn" class="btn btn-primary">Done, I've Configured It</button>
+            </div>
         </div>
     </div>
     
