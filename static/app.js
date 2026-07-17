@@ -149,6 +149,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const editPoQty = document.getElementById("edit-po-qty");
     const editPoStatus = document.getElementById("edit-po-status");
     const editInvoiceNoVal = document.getElementById("edit-invoice-no-val");
+    const editInvoiceItemDescription = document.getElementById("edit-invoice-item-description");
+    const editInvoiceItemDescGroup = document.getElementById("edit-invoice-item-desc-group");
 
     // Toast
     const toastNotification = document.getElementById("toast-notification");
@@ -783,6 +785,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <th>Challan No</th>
                     <th>Bill To</th>
                     <th>PO/WO No</th>
+                    <th>Item Description</th>
                     <th class="col-amount">Invoice Amt (₹)</th>
                     <th>Eway Bill</th>
                     <th>ASN No</th>
@@ -861,7 +864,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return matchesSearch && matchesMrn;
         });
 
-        const colCount = docType === "Challan" ? 15 : 18;
+        const colCount = docType === "Challan" ? 15 : 19;
 
         if (filtered.length === 0) {
             ledgerBody.innerHTML = `
@@ -954,6 +957,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 cellHtmlList.push(`<td>${inv.challan_no || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.bill_to || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.po_wo_no || ''}</td>`);
+                cellHtmlList.push(`<td style="text-align: left; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inv.item_description || ''}">${inv.item_description || ''}</td>`);
                 cellHtmlList.push(`<td class="col-amount">${parseFloat(inv.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>`);
                 cellHtmlList.push(`<td>${inv.eway_bill || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.asn_no || ''}</td>`);
@@ -1134,6 +1138,7 @@ document.addEventListener("DOMContentLoaded", () => {
         challan_no: "Challan No",
         bill_to: "Bill To",
         po_wo_no: "PO/WO No",
+        item_description: "Item Description",
         amount: "Invoice Amt (₹)",
         eway_bill: "Eway Bill",
         asn_no: "ASN No",
@@ -1310,9 +1315,12 @@ document.addEventListener("DOMContentLoaded", () => {
             editPoQty.value = doc.po_qty || "";
             editPoStatus.value = doc.po_status || "OPEN";
             editInvoiceNoVal.value = doc.invoice_no || "";
+            editInvoiceItemDescGroup.style.display = "none";
         } else {
             editMrnSection.style.display = "grid";
             editChallanFields.style.display = "none";
+            editInvoiceItemDescGroup.style.display = "block";
+            editInvoiceItemDescription.value = doc.item_description || "";
         }
         
         editModal.style.display = "flex";
@@ -1339,6 +1347,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.mrn_status = editMrnStatus.value;
             updatedData.mrn_date = editMrnDate.value;
             updatedData.mrn_no = editMrnNo.value;
+            updatedData.item_description = editInvoiceItemDescription.value;
         }
 
         if (docType === "Challan") {
