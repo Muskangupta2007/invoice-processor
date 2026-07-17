@@ -318,13 +318,12 @@ def add_document(data):
         conn.close()
     
     if success:
-        sync_to_excel(company)
         try:
             import gsheet
-            import threading
+            threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
             threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
         except Exception as e:
-            print(f"Error triggering gsheet sync in add_document: {e}")
+            print(f"Error triggering background sync tasks in add_document: {e}")
     return success
 
 def update_document(company, doc_type, doc_no, data):
@@ -367,13 +366,12 @@ def update_document(company, doc_type, doc_no, data):
     conn.close()
     
     if rows_affected > 0:
-        sync_to_excel(company)
         try:
             import gsheet
-            import threading
+            threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
             threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
         except Exception as e:
-            print(f"Error triggering gsheet sync in update_document: {e}")
+            print(f"Error triggering background sync tasks in update_document: {e}")
         return True
     return False
 
@@ -391,13 +389,12 @@ def delete_document(company, doc_type, doc_no):
     conn.close()
     
     if rows_affected > 0:
-        sync_to_excel(company)
         try:
             import gsheet
-            import threading
+            threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
             threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
         except Exception as e:
-            print(f"Error triggering gsheet sync in delete_document: {e}")
+            print(f"Error triggering background sync tasks in delete_document: {e}")
         return True
     return False
 
@@ -1111,7 +1108,7 @@ def start_excel_watcher():
             # --- Google Sheets Periodic Sync Check (runs every 30 seconds) ---
             for comp in COMPANIES:
                 sync_url = get_setting(f"gsheet_sync_url_{comp.lower().replace(' ', '_')}")
-                if sync_url and (now - last_gsheet_poll[comp] > 30.0):
+                if sync_url and (now - last_gsheet_poll[comp] > 90.0):
                     last_gsheet_poll[comp] = now
                     try:
                         import gsheet
