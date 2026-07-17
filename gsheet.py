@@ -249,6 +249,8 @@ def sync_from_google_sheet(company):
             inv_db = {}
             for col_name, db_name in excel_to_db_inv.items():
                 val = inv_row.get(col_name)
+                if db_name in ['doc_date', 'delivery_date', 'mrn_date']:
+                    val = db.clean_date_string(val)
                 inv_db[db_name] = None if val == "" else val
                 
             inv_db['company'] = company
@@ -276,7 +278,7 @@ def sync_from_google_sheet(company):
             if doc_no not in grouped_challans:
                 grouped_challans[doc_no] = {
                     'doc_no': doc_no,
-                    'doc_date': chal_row.get('Delivery Date'),
+                    'doc_date': db.clean_date_string(chal_row.get('Delivery Date')),
                     'invoice_no': chal_row.get('Invoice Number'),
                     'challan_no': doc_no,
                     'bill_to': chal_row.get('Bill To') or 'LARSEN & TOUBRO',
@@ -284,7 +286,7 @@ def sync_from_google_sheet(company):
                     'delivery_site': chal_row.get('Delivery Location'),
                     'po_status': chal_row.get('PO Status'),
                     'mrn_status': chal_row.get('MRN Status') or 'PENDING',
-                    'mrn_date': chal_row.get('MRN Date'),
+                    'mrn_date': db.clean_date_string(chal_row.get('MRN Date')),
                     'mrn_no': chal_row.get('MRN No'),
                     'remarks': chal_row.get('Remarks'),
                     

@@ -89,6 +89,26 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return conn
 
+def clean_date_string(date_str):
+    if not date_str:
+        return ""
+    date_str = str(date_str).strip()
+    if 'T' in date_str:
+        date_str = date_str.split('T')[0]
+    parts = date_str.split(' ')
+    if len(parts) > 1 and ':' in parts[1]:
+        date_str = parts[0]
+        
+    # Standardize YYYY-MM-DD format to DD Month YYYY
+    try:
+        from datetime import datetime
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%d %B %Y")
+    except ValueError:
+        pass
+        
+    return date_str
+
 def get_excel_storage_dir():
     custom_dir = get_setting("excel_storage_directory", "")
     if custom_dir:
@@ -244,6 +264,11 @@ def add_document(data):
     if not company or not doc_type:
         return False
         
+    # Clean date fields to remove time components
+    for field in ['doc_date', 'delivery_date', 'mrn_date']:
+        if field in data:
+            data[field] = clean_date_string(data[field])
+            
     check_excel_writable(company)
     
     conn = get_db_connection()
@@ -303,6 +328,11 @@ def add_document(data):
     return success
 
 def update_document(company, doc_type, doc_no, data):
+    # Clean date fields to remove time components
+    for field in ['doc_date', 'delivery_date', 'mrn_date']:
+        if field in data:
+            data[field] = clean_date_string(data[field])
+            
     check_excel_writable(company)
     
     conn = get_db_connection()
