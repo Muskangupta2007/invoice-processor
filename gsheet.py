@@ -14,8 +14,20 @@ def compute_data_hash(invoices, challans):
     for inv in invoices:
         normalized_inv.append({
             "doc_no": str(inv.get("doc_no", "")).strip(),
+            "doc_date": str(inv.get("doc_date", "")).strip(),
+            "challan_no": str(inv.get("challan_no", "")).strip(),
+            "bill_to": str(inv.get("bill_to", "")).strip(),
+            "po_wo_no": str(inv.get("po_wo_no", "")).strip(),
+            "item_description": str(inv.get("item_description", "")).strip(),
             "amount": float(inv.get("amount") or 0.0),
+            "eway_bill": str(inv.get("eway_bill", "")).strip(),
+            "asn_no": str(inv.get("asn_no", "")).strip(),
+            "mode_of_transp": str(inv.get("mode_of_transp", "")).strip(),
+            "dock_code": str(inv.get("dock_code", "")).strip(),
+            "delivery_date": str(inv.get("delivery_date", "")).strip(),
+            "delivery_site": str(inv.get("delivery_site", "")).strip(),
             "mrn_status": str(inv.get("mrn_status", "PENDING")).strip(),
+            "mrn_date": str(inv.get("mrn_date", "")).strip(),
             "mrn_no": str(inv.get("mrn_no", "")).strip(),
             "remarks": str(inv.get("remarks", "")).strip()
         })
@@ -24,11 +36,20 @@ def compute_data_hash(invoices, challans):
     for chal in challans:
         normalized_chal.append({
             "doc_no": str(chal.get("doc_no", "")).strip(),
+            "doc_date": str(chal.get("doc_date", "")).strip(),
+            "invoice_no": str(chal.get("invoice_no", "")).strip(),
+            "challan_no": str(chal.get("challan_no", "")).strip(),
+            "bill_to": str(chal.get("bill_to", "")).strip(),
+            "po_wo_no": str(chal.get("po_wo_no", "")).strip(),
+            "delivery_site": str(chal.get("delivery_site", "")).strip(),
+            "po_status": str(chal.get("po_status", "")).strip(),
             "item_description": str(chal.get("item_description", "")).strip(),
             "deliver_qty": str(chal.get("deliver_qty", "")).strip(),
             "uom": str(chal.get("uom", "")).strip(),
             "unit_price": str(chal.get("unit_price", "")).strip(),
+            "po_qty": str(chal.get("po_qty", "")).strip(),
             "mrn_status": str(chal.get("mrn_status", "PENDING")).strip(),
+            "mrn_date": str(chal.get("mrn_date", "")).strip(),
             "mrn_no": str(chal.get("mrn_no", "")).strip(),
             "remarks": str(chal.get("remarks", "")).strip()
         })
