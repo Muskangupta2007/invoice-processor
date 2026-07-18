@@ -490,12 +490,13 @@ def download_excel(company, file_type):
     file_suffix = "_Pending_MRN" if file_type == 'pending' else ""
     file_name = f"{company.replace(' ', '_')}{file_suffix}.xlsx"
     
-    return send_file(
+    response = send_file(
         excel_path,
         as_attachment=True,
-        download_name=file_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
+    return response
 
 @app.route('/api/download-report/<company>/<report_type>', methods=['GET'])
 @requires_auth
@@ -785,12 +786,13 @@ def download_report(company, report_type):
         
         file_suffix = "pending_mrn" if report_type == "pending_mrn" else "pending_po"
         file_name = f"{company.replace(' ', '_')}_{file_suffix}_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        return send_file(
+        response = send_file(
             output,
             as_attachment=True,
-            download_name=file_name,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
+        return response
 
     # Standard pandas-based export for volume, sequence_gap, pending_eway
     df = pd.DataFrame()
@@ -846,12 +848,13 @@ def download_report(company, report_type):
     output.seek(0)
     
     file_name = f"{company.replace(' ', '_')}_{report_type}_{datetime.now().strftime('%Y%m%d')}.xlsx"
-    return send_file(
+    response = send_file(
         output,
         as_attachment=True,
-        download_name=file_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
+    return response
 
 
 def is_local_request(remote_addr):

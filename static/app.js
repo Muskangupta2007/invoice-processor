@@ -425,12 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast(`Downloading ${state.activeCompany} ${label} workbook...`);
                 const tokenStr = `?token=${encodeURIComponent(getAuthToken())}`;
                 const downloadUrl = `/api/download-excel/${encodeURIComponent(state.activeCompany)}/${fileType}${tokenStr}`;
-                const link = document.createElement('a');
-                link.href = downloadUrl;
-                link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                window.location.href = downloadUrl;
                 return;
             }
 
@@ -447,12 +442,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     showToast(data.message);
                 } else if (data.status === "download") {
                     showToast(data.message || "Downloading file...");
-                    const link = document.createElement('a');
-                    link.href = data.url;
-                    link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    window.location.href = data.url;
                 } else {
                     showToast(data.message, "danger");
                 }
@@ -463,12 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Fallback to direct download
                 const tokenStr = `?token=${encodeURIComponent(getAuthToken())}`;
                 const downloadUrl = `/api/download-excel/${encodeURIComponent(state.activeCompany)}/${fileType}${tokenStr}`;
-                const link = document.createElement('a');
-                link.href = downloadUrl;
-                link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                window.location.href = downloadUrl;
             });
         });
     });
@@ -485,12 +470,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const tokenStr = `?token=${encodeURIComponent(getAuthToken())}`;
             const downloadUrl = `/api/download-excel/${encodeURIComponent(state.activeCompany)}/${fileType}${tokenStr}`;
             
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            window.location.href = downloadUrl;
         });
     });
 
@@ -504,14 +484,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         
         showToast(`Generating and downloading Excel report...`);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        const fileSuffix = reportType === "main" ? "Main_Ledger" : reportType;
-        link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileSuffix}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        window.location.href = url;
     }
 
     cardTotalDocs.addEventListener("dblclick", () => triggerReportDownload("main"));
