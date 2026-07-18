@@ -847,10 +847,16 @@ def download_report(company, report_type):
         ]
         if pending_eway_list:
             df = pd.DataFrame(pending_eway_list)[[
-                'doc_no', 'doc_date', 'bill_to', 'po_wo_no', 'amount', 'eway_bill_no', 'remarks'
+                'doc_no', 'doc_date', 'bill_to', 'po_wo_no', 'item_description', 'amount', 'eway_bill_no', 'remarks'
             ]].rename(columns={
-                'doc_no': 'Invoice No', 'doc_date': 'Invoice Date', 'bill_to': 'Bill To',
-                'po_wo_no': 'PO/WO No', 'amount': 'Invoice Amt', 'eway_bill_no': 'E way Bill no', 'remarks': 'Remarks'
+                'doc_no': 'Invoice No',
+                'doc_date': 'Invoice Date',
+                'bill_to': 'Bill To',
+                'po_wo_no': 'PO/WO No',
+                'item_description': 'Item Description',
+                'amount': 'Invoice Amt',
+                'eway_bill_no': 'E way Bill no',
+                'remarks': 'Remarks'
             })
         sheet_name = "Pending Eway Bills"
         
