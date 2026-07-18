@@ -184,9 +184,14 @@ def init_db():
     
     # Run dynamic schema migration to add eway_bill_no column
     try:
+        conn.commit()
         cursor.execute("ALTER TABLE documents ADD COLUMN eway_bill_no TEXT")
+        conn.commit()
     except Exception:
-        pass
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     
     # Create settings table
     cursor.execute("""
