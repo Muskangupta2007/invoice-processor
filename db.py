@@ -159,6 +159,7 @@ def init_db():
             item_description TEXT,
             amount REAL,
             eway_bill TEXT,
+            eway_bill_no TEXT,
             asn_no TEXT,
             mode_of_transp TEXT,
             dock_code TEXT,
@@ -181,6 +182,12 @@ def init_db():
         )
     """)
     
+    # Run dynamic schema migration to add eway_bill_no column
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN eway_bill_no TEXT")
+    except Exception:
+        pass
+    
     # Create settings table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
@@ -192,6 +199,7 @@ def init_db():
     # Seed default admin credentials
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'admin')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'invosync2026')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('settings_password', 'settings2026')")
     
     conn.commit()
     conn.close()
@@ -269,6 +277,25 @@ def add_document(data):
         if field in data:
             data[field] = clean_date_string(data[field])
             
+    # Clean and enforce E-way bill rules
+    if doc_type == 'Invoice':
+        eway = str(data.get('eway_bill', '')).strip()
+        is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+        try:
+            amt = float(data.get('amount') or 0.0)
+        except (ValueError, TypeError):
+            amt = 0.0
+            
+        if is_custom_eway:
+            data['eway_bill_no'] = eway
+            data['eway_bill'] = "DONE"
+        else:
+            data['eway_bill_no'] = data.get('eway_bill_no') or ""
+            if amt < 50000:
+                data['eway_bill'] = "N/A"
+            else:
+                data['eway_bill'] = "PENDING"
+            
     check_excel_writable(company)
     
     conn = get_db_connection()
@@ -277,11 +304,11 @@ def add_document(data):
         cursor.execute("""
             INSERT INTO documents (
                 company, doc_type, doc_no, doc_date, invoice_no, challan_no,
-                bill_to, po_wo_no, item_description, amount, eway_bill, asn_no,
+                bill_to, po_wo_no, item_description, amount, eway_bill, eway_bill_no, asn_no,
                 mode_of_transp, dock_code, delivery_date, delivery_site,
                 mrn_status, mrn_date, mrn_no, remarks,
                 deliver_qty, uom, unit_price, po_status, po_qty
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             company,
             doc_type,
@@ -294,6 +321,7 @@ def add_document(data):
             data.get('item_description'),
             data.get('amount'),
             data.get('eway_bill'),
+            data.get('eway_bill_no'),
             data.get('asn_no'),
             data.get('mode_of_transp'),
             data.get('dock_code'),
@@ -332,6 +360,32 @@ def update_document(company, doc_type, doc_no, data):
         if field in data:
             data[field] = clean_date_string(data[field])
             
+    # Clean and enforce E-way bill rules
+    if doc_type == 'Invoice':
+        current_doc = get_document_by_no(company, doc_type, doc_no)
+        current_amount = current_doc.get('amount', 0.0) if current_doc else 0.0
+        current_eway = current_doc.get('eway_bill', 'PENDING') if current_doc else 'PENDING'
+        current_eway_no = current_doc.get('eway_bill_no', '') if current_doc else ''
+        
+        amt = data.get('amount', current_amount)
+        try:
+            amt = float(amt or 0.0)
+        except (ValueError, TypeError):
+            amt = 0.0
+            
+        eway = str(data.get('eway_bill') if 'eway_bill' in data else current_eway_no or current_eway).strip()
+        is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+        
+        if is_custom_eway:
+            data['eway_bill_no'] = eway
+            data['eway_bill'] = "DONE"
+        else:
+            data['eway_bill_no'] = ""
+            if amt < 50000:
+                data['eway_bill'] = "N/A"
+            else:
+                data['eway_bill'] = "PENDING"
+             
     check_excel_writable(company)
     
     conn = get_db_connection()
@@ -342,7 +396,7 @@ def update_document(company, doc_type, doc_no, data):
     
     updatable_fields = [
         'doc_date', 'invoice_no', 'challan_no', 'bill_to', 'po_wo_no',
-        'item_description', 'amount', 'eway_bill', 'asn_no', 'mode_of_transp',
+        'item_description', 'amount', 'eway_bill', 'eway_bill_no', 'asn_no', 'mode_of_transp',
         'dock_code', 'delivery_date', 'delivery_site', 'mrn_status',
         'mrn_date', 'mrn_no', 'remarks',
         'deliver_qty', 'uom', 'unit_price', 'po_status', 'po_qty'
@@ -457,7 +511,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
         # Column headers definitions (including MRN fields and Item Description for Invoices)
         cols_inv = [
             'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
-            'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
+            'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'E way Bill no', 'ASN No', 'Mode of Transp',
             'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
         ]
         
@@ -529,6 +583,8 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                                 row_data.append(doc.get('amount', 0.0))
                             elif col == 'Eway Bill':
                                 row_data.append(doc.get('eway_bill', ''))
+                            elif col == 'E way Bill no':
+                                row_data.append(doc.get('eway_bill_no', ''))
                             elif col == 'ASN No':
                                 row_data.append(doc.get('asn_no', ''))
                             elif col == 'Mode of Transp':
@@ -669,43 +725,97 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 
         # 2. Generate Pending MRN Workbook
         if sync_pending:
-            pending_list = []
-            for inv in invoices:
-                status = str(inv.get('mrn_status', '')).upper()
-                mrn_no = inv.get('mrn_no')
-                if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
-                    pending_list.append({
-                        'Type': 'Invoice',
-                        'Doc No': inv['doc_no'],
-                        'Doc Date': inv['doc_date'],
-                        'Bill To': inv['bill_to'],
-                        'PO/WO No': inv['po_wo_no'],
-                        'Amount': inv['amount'],
-                        'Remarks': inv['remarks']
-                    })
-                    
-            for chal in challans:
-                status = str(chal.get('mrn_status', '')).upper()
-                mrn_no = chal.get('mrn_no')
-                if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
-                    pending_list.append({
-                        'Type': 'Delivery Challan',
-                        'Doc No': chal['doc_no'],
-                        'Doc Date': chal['doc_date'],
-                        'Bill To': chal['bill_to'],
-                        'PO/WO No': chal['po_wo_no'],
-                        'Amount': chal['amount'],
-                        'Remarks': chal['remarks']
-                    })
-                    
-            if pending_list:
-                df_pending = pd.DataFrame(pending_list).reindex(columns=[
-                    'Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'
-                ])
-            else:
-                df_pending = pd.DataFrame(columns=[
-                    'Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'
-                ])
+            import openpyxl
+            from openpyxl.styles import Alignment, Font, PatternFill
+            from openpyxl.utils import get_column_letter
+            
+            wb_p = openpyxl.Workbook()
+            ws_p = wb_p.active
+            ws_p.title = "Pending MRNs"
+            
+            # Use same cols as Invoices
+            cols_p = cols_inv
+            ws_p.append(cols_p)
+            
+            # Formatting headers
+            header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+            for col_idx in range(1, len(cols_p) + 1):
+                cell = ws_p.cell(row=1, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            # Filter and sort pending invoices ascending by ID
+            pending_invoices = [d for d in invoices if str(d.get('mrn_status', '')).upper() != 'DONE' or not d.get('mrn_no') or str(d.get('mrn_no')).strip() == '']
+            sorted_pending = sorted(pending_invoices, key=lambda x: x['id'])
+            
+            row_idx_counter = 1
+            for doc in sorted_pending:
+                row_data = []
+                for col in cols_p:
+                    if col == 'S.No':
+                        row_data.append(row_idx_counter)
+                    elif col == 'Invoice No':
+                        row_data.append(doc.get('doc_no', ''))
+                    elif col == 'Invoice Date':
+                        row_data.append(doc.get('doc_date', ''))
+                    elif col == 'Challan No':
+                        row_data.append(doc.get('challan_no', ''))
+                    elif col == 'Bill To':
+                        row_data.append(doc.get('bill_to', ''))
+                    elif col == 'PO/WO No':
+                        row_data.append(doc.get('po_wo_no', ''))
+                    elif col == 'Item Description':
+                        row_data.append(doc.get('item_description', ''))
+                    elif col == 'Invoice Amt':
+                        row_data.append(doc.get('amount', 0.0))
+                    elif col == 'Eway Bill':
+                        row_data.append(doc.get('eway_bill', ''))
+                    elif col == 'E way Bill no':
+                        row_data.append(doc.get('eway_bill_no', ''))
+                    elif col == 'ASN No':
+                        row_data.append(doc.get('asn_no', ''))
+                    elif col == 'Mode of Transp':
+                        row_data.append(doc.get('mode_of_transp', ''))
+                    elif col == 'Dock Code':
+                        row_data.append(doc.get('dock_code', ''))
+                    elif col == 'Delivery Date':
+                        row_data.append(doc.get('delivery_date', ''))
+                    elif col == 'Delivery Site':
+                        row_data.append(doc.get('delivery_site', ''))
+                    elif col == 'MRN Status':
+                        row_data.append(doc.get('mrn_status', 'PENDING'))
+                    elif col == 'MRN Date':
+                        row_data.append(doc.get('mrn_date', ''))
+                    elif col == 'MRN No':
+                        row_data.append(doc.get('mrn_no', ''))
+                    elif col == 'Remarks':
+                        row_data.append(doc.get('remarks', ''))
+                    else:
+                        row_data.append('')
+                ws_p.append(row_data)
+                row_idx_counter += 1
+                
+            # Formatting line wrap for cells with newlines & currency formats
+            for row in ws_p.iter_rows(min_row=2, max_row=ws_p.max_row, min_col=1, max_col=ws_p.max_column):
+                for cell in row:
+                    if cell.column == 8: # Invoice Amt
+                        cell.number_format = '₹#,##0.00'
+                    if cell.value and isinstance(cell.value, str) and '\n' in cell.value:
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+                        
+            # Auto-fit column widths
+            for col in ws_p.columns:
+                max_len = 0
+                for cell in col:
+                    if cell.value is not None:
+                        lines = str(cell.value).split('\n')
+                        for line in lines:
+                            if len(line) > max_len:
+                                max_len = len(line)
+                col_letter = get_column_letter(col[0].column)
+                ws_p.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 100)
                 
             try:
                 import tempfile
@@ -714,9 +824,9 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 fd, temp_path = tempfile.mkstemp(suffix='.xlsx', dir=temp_dir)
                 os.close(fd)
                 
-                with pd.ExcelWriter(temp_path, engine='openpyxl') as writer:
-                    df_pending.to_excel(writer, sheet_name='Pending MRNs', index=False)
-                    
+                wb_p.save(temp_path)
+                wb_p.close()
+                
                 shutil.move(temp_path, pending_excel_path)
                 last_written_mtime[pending_excel_path] = os.path.getmtime(pending_excel_path)
             except PermissionError as e:
@@ -765,6 +875,7 @@ def sync_from_excel():
                     'Item Description': 'item_description',
                     'Invoice Amt': 'amount',
                     'Eway Bill': 'eway_bill',
+                    'E way Bill no': 'eway_bill_no',
                     'ASN No': 'asn_no',
                     'Mode of Transp': 'mode_of_transp',
                     'Dock Code': 'dock_code',
@@ -791,6 +902,25 @@ def sync_from_excel():
                                 row_dict['amount'] = float(str(row_dict['amount']).replace(',', '').strip())
                             except ValueError:
                                 row_dict['amount'] = 0.0
+                        else:
+                            row_dict['amount'] = 0.0
+                                
+                        # E-way bill rules
+                        eway = str(row_dict.get('eway_bill_no') or row_dict.get('eway_bill') or '').strip()
+                        is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+                        try:
+                            amt = float(row_dict.get('amount') or 0.0)
+                        except (ValueError, TypeError):
+                            amt = 0.0
+                        if is_custom_eway:
+                            row_dict['eway_bill_no'] = eway
+                            row_dict['eway_bill'] = "DONE"
+                        else:
+                            row_dict['eway_bill_no'] = ""
+                            if amt < 50000:
+                                row_dict['eway_bill'] = "N/A"
+                            else:
+                                row_dict['eway_bill'] = "PENDING"
                                 
                         placeholders = ", ".join(["?"] * len(row_dict))
                         columns = ", ".join(row_dict.keys())
@@ -958,6 +1088,7 @@ def sync_excel_to_db(company):
                 'Item Description': 'item_description',
                 'Invoice Amt': 'amount',
                 'Eway Bill': 'eway_bill',
+                'E way Bill no': 'eway_bill_no',
                 'ASN No': 'asn_no',
                 'Mode of Transp': 'mode_of_transp',
                 'Dock Code': 'dock_code',
@@ -984,6 +1115,25 @@ def sync_excel_to_db(company):
                             row_dict['amount'] = float(str(row_dict['amount']).replace(',', '').strip())
                         except ValueError:
                             row_dict['amount'] = 0.0
+                    else:
+                        row_dict['amount'] = 0.0
+                            
+                    # E-way bill rules
+                    eway = str(row_dict.get('eway_bill_no') or row_dict.get('eway_bill') or '').strip()
+                    is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+                    try:
+                        amt = float(row_dict.get('amount') or 0.0)
+                    except (ValueError, TypeError):
+                        amt = 0.0
+                    if is_custom_eway:
+                        row_dict['eway_bill_no'] = eway
+                        row_dict['eway_bill'] = "DONE"
+                    else:
+                        row_dict['eway_bill_no'] = ""
+                        if amt < 50000:
+                            row_dict['eway_bill'] = "N/A"
+                        else:
+                            row_dict['eway_bill'] = "PENDING"
                             
                     placeholders = ", ".join(["?"] * len(row_dict))
                     columns = ", ".join(row_dict.keys())

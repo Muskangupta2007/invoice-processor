@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
         invoices: [], 
         reports: {},
         settings: {},
+        settingsPassword: "",
         activeTab: "dashboard",
         activeCompany: "SK Agro",      // Active selected company
         activeDocType: "Invoice",     // Active selected module (Invoice/Challan)
@@ -181,6 +182,16 @@ document.addEventListener("DOMContentLoaded", () => {
         return headers;
     }
 
+    function getSettingsHeaders(jsonContentType = true) {
+        const headers = {
+            "Authorization": `Bearer ${state.settingsPassword || ""}`
+        };
+        if (jsonContentType) {
+            headers["Content-Type"] = "application/json";
+        }
+        return headers;
+    }
+
     function checkAuthResponse(res) {
         if (res.status === 401) {
             localStorage.removeItem("auth_token");
@@ -236,6 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
     logoutBtn.addEventListener("click", () => {
         if (confirm("Are you sure you want to sign out?")) {
             localStorage.removeItem("auth_token");
+            state.settingsPassword = "";
             showLoginScreen();
             showToast("Signed out successfully.");
         }
@@ -246,6 +258,11 @@ document.addEventListener("DOMContentLoaded", () => {
     function switchTab(tabId) {
         if (!getAuthToken()) {
             showLoginScreen();
+            return;
+        }
+
+        if (tabId === "settings" && !state.settingsPassword) {
+            openSettingsAuthModal();
             return;
         }
 
@@ -788,6 +805,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <th>Item Description</th>
                     <th class="col-amount">Invoice Amt (₹)</th>
                     <th>Eway Bill</th>
+                    <th>E way Bill no</th>
                     <th>ASN No</th>
                     <th>Mode of Transp</th>
                     <th>Dock Code</th>
@@ -960,6 +978,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 cellHtmlList.push(`<td style="text-align: left; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inv.item_description || ''}">${inv.item_description || ''}</td>`);
                 cellHtmlList.push(`<td class="col-amount">${parseFloat(inv.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>`);
                 cellHtmlList.push(`<td>${inv.eway_bill || ''}</td>`);
+                cellHtmlList.push(`<td>${inv.eway_bill_no || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.asn_no || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.mode_of_transp || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.dock_code || ''}</td>`);
@@ -1141,6 +1160,7 @@ document.addEventListener("DOMContentLoaded", () => {
         item_description: "Item Description",
         amount: "Invoice Amt (₹)",
         eway_bill: "Eway Bill",
+        eway_bill_no: "E-way Bill No.",
         asn_no: "ASN No",
         mode_of_transp: "Mode of Transp",
         dock_code: "Dock Code",
@@ -1316,11 +1336,14 @@ document.addEventListener("DOMContentLoaded", () => {
             editPoStatus.value = doc.po_status || "OPEN";
             editInvoiceNoVal.value = doc.invoice_no || "";
             editInvoiceItemDescGroup.style.display = "none";
+            document.getElementById("edit-eway-bill-group").style.display = "none";
         } else {
             editMrnSection.style.display = "grid";
             editChallanFields.style.display = "none";
             editInvoiceItemDescGroup.style.display = "block";
             editInvoiceItemDescription.value = doc.item_description || "";
+            document.getElementById("edit-eway-bill-group").style.display = "block";
+            document.getElementById("edit-eway-bill").value = doc.eway_bill || "";
         }
         
         editModal.style.display = "flex";
@@ -1348,6 +1371,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.mrn_date = editMrnDate.value;
             updatedData.mrn_no = editMrnNo.value;
             updatedData.item_description = editInvoiceItemDescription.value;
+            updatedData.eway_bill = document.getElementById("edit-eway-bill").value;
         }
 
         if (docType === "Challan") {
@@ -1395,7 +1419,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         fetch("/api/settings", {
-            headers: getAuthHeaders(false)
+            headers: getSettingsHeaders(false)
         })
         .then(checkAuthResponse)
         .then(res => res.json())
@@ -1404,6 +1428,7 @@ document.addEventListener("DOMContentLoaded", () => {
             settingsAdminUsername.value = data.admin_username || "";
             settingsAdminPassword.value = "";
             document.getElementById("settings-confirm-password").value = "";
+            document.getElementById("settings-lock-password").value = "";
             document.getElementById("settings-current-password").value = "";
             settingsAzureEndpoint.value = data.azure_endpoint || "";
             settingsAzureKey.value = data.azure_api_key_masked || "";
@@ -1438,18 +1463,21 @@ document.addEventListener("DOMContentLoaded", () => {
         const gsheet_sync_url_triotech = settingsGsheetSyncUrlTriotech.value.trim();
         
         const settingsConfirmPassword = document.getElementById("settings-confirm-password");
+        const settingsLockPassword = document.getElementById("settings-lock-password");
         const settingsCurrentPassword = document.getElementById("settings-current-password");
 
         const confirm_pass = settingsConfirmPassword.value.trim();
+        const lock_pass = settingsLockPassword.value.trim();
         const current_pass = settingsCurrentPassword.value.trim();
         
         const payload = {};
         
-        // Only trigger validation if username/password actually changed
+        // Only trigger validation if username/password/settings-lock actually changed
         const usernameChanged = (admin_user && admin_user !== (state.settings.admin_username || "admin"));
         const passwordChanged = (admin_pass !== "");
+        const passwordLockChanged = (lock_pass !== "");
         
-        if (usernameChanged || passwordChanged) {
+        if (usernameChanged || passwordChanged || passwordLockChanged) {
             if (!current_pass) {
                 showToast("Current password is required to change Access Control credentials.", "warning");
                 return;
@@ -1460,6 +1488,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (usernameChanged) payload.admin_username = admin_user;
             if (passwordChanged) payload.admin_password = admin_pass;
+            if (passwordLockChanged) payload.settings_lock_password = lock_pass;
             payload.current_password = current_pass;
         }
         
@@ -1478,7 +1507,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         fetch("/api/settings", {
             method: "POST",
-            headers: getAuthHeaders(true),
+            headers: getSettingsHeaders(true),
             body: JSON.stringify(payload)
         })
         .then(res => {
@@ -1500,6 +1529,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     localStorage.setItem("auth_token", admin_pass);
                 }
                 
+                // If settings lock password was changed, update state
+                if (lock_pass) {
+                    state.settingsPassword = lock_pass;
+                }
+                
                 fetchSettings();
             } else {
                 showToast(data.message, "danger");
@@ -1516,7 +1550,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         fetch("/api/settings/test-teams", { 
             method: "POST",
-            headers: getAuthHeaders(false)
+            headers: getSettingsHeaders(false)
         })
         .then(checkAuthResponse)
         .then(res => res.json())
@@ -1607,7 +1641,7 @@ function writeSheetData(sheetName, dataList) {
   if (sheetName === "Invoices") {
     cols = [
       'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
-      'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'ASN No', 'Mode of Transp',
+      'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'E way Bill no', 'ASN No', 'Mode of Transp',
       'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
     ];
   } else if (sheetName === "Delivery Challans") {
@@ -1618,7 +1652,11 @@ function writeSheetData(sheetName, dataList) {
       'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
     ];
   } else if (sheetName === "Pending MRNs") {
-    cols = ['Type', 'Doc No', 'Doc Date', 'Bill To', 'PO/WO No', 'Amount', 'Remarks'];
+    cols = [
+      'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
+      'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'E way Bill no', 'ASN No', 'Mode of Transp',
+      'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+    ];
   }
   if (!sheet) sheet = ss.insertSheet(sheetName);
   sheet.clear();
@@ -1654,6 +1692,57 @@ function writeSheetData(sheetName, dataList) {
         gsheetScriptCode.select();
         document.execCommand("copy");
         showToast("Google Apps Script code copied to clipboard!");
+    });
+
+    // --- SETTINGS LOCK AUTH MODAL ---
+    const settingsAuthModal = document.getElementById("settings-auth-modal");
+    const settingsAuthForm = document.getElementById("settings-auth-form");
+    const settingsAuthPassword = document.getElementById("settings-auth-password");
+    const settingsAuthCancelBtn = document.getElementById("settings-auth-cancel-btn");
+    const closeSettingsAuthModal = document.getElementById("close-settings-auth-modal");
+
+    function openSettingsAuthModal() {
+        settingsAuthPassword.value = "";
+        settingsAuthModal.style.display = "flex";
+        settingsAuthPassword.focus();
+    }
+
+    function closeSettingsAuthModalWindow() {
+        settingsAuthModal.style.display = "none";
+    }
+
+    closeSettingsAuthModal.addEventListener("click", closeSettingsAuthModalWindow);
+    settingsAuthCancelBtn.addEventListener("click", closeSettingsAuthModalWindow);
+
+    settingsAuthForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const pwd = settingsAuthPassword.value.trim();
+        
+        fetch("/api/settings", {
+            headers: {
+                "Authorization": `Bearer ${pwd}`
+            }
+        })
+        .then(res => {
+            if (res.status === 401) {
+                showToast("Incorrect Settings Lock password.", "danger");
+                throw new Error("Unauthorized settings lock password");
+            }
+            if (!res.ok) {
+                showToast("Server error during validation.", "danger");
+                throw new Error("Server error");
+            }
+            return res.json();
+        })
+        .then(data => {
+            state.settingsPassword = pwd;
+            closeSettingsAuthModalWindow();
+            showToast("Settings unlocked successfully!");
+            switchTab("settings");
+        })
+        .catch(err => {
+            console.error("Settings lock auth error:", err);
+        });
     });
 
     // Initial page load check

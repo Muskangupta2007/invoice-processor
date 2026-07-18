@@ -76,12 +76,35 @@ def extract_invoice_data(file_path, endpoint, api_key, doc_type="Invoice"):
         
     return parse_azure_invoice_result(result, doc_type)
 
+def extract_eway_bill_number(content):
+    if not content:
+        return None
+    # Normalize whitespaces and newlines
+    normalized_content = " ".join(content.split())
+    # Regex to find eway bill label followed by 12 digits (with optional spaces/dashes)
+    pattern = r'(?i)e[- ]?way\s*(?:bill|no|number|num)?\s*(?:no|number|num)?\s*[\.:-]*\s*(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)'
+    match = re.search(pattern, normalized_content)
+    if match:
+        raw_val = match.group(1)
+        # Clean up separators
+        clean_val = re.sub(r'[- ]', '', raw_val)
+        return clean_val
+    # Fallback to look for "eway" keyword followed by up to 40 characters and then 12 digits
+    pattern_fallback = r'(?i)e[- ]?way(?:[a-z0-9\s.,:-]{0,40})?(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)'
+    match_fb = re.search(pattern_fallback, normalized_content)
+    if match_fb:
+        raw_val_fb = match_fb.group(1)
+        clean_val_fb = re.sub(r'[- ]', '', raw_val_fb)
+        return clean_val_fb
+    return None
+
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
     Helper function to parse Azure Analyze Result JSON and map it to our target schema.
     Supports joining item descriptions, quantities, units, and unit prices with newlines.
     """
     analyze_result = result.get("analyzeResult", {})
+    content = analyze_result.get("content", "")
     documents = analyze_result.get("documents", [])
     
     if not documents:
@@ -236,6 +259,20 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         invoice_no = doc_no
         challan_no = "DIRECT INVOICE"
 
+    # Compute E-way Bill based on amount and scanned content
+    eway_bill_val = "PENDING"
+    eway_bill_no_val = ""
+    if doc_type == "Invoice":
+        extracted_no = extract_eway_bill_number(content)
+        if extracted_no:
+            eway_bill_no_val = extracted_no
+            eway_bill_val = "DONE"
+        else:
+            if amount < 50000:
+                eway_bill_val = "N/A"
+            else:
+                eway_bill_val = "PENDING"
+
     # Map directly to our spreadsheet database format
     data = {
         "doc_no": doc_no,
@@ -246,7 +283,8 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         "po_wo_no": get_field_val("PurchaseOrder"),
         "item_description": item_description,
         "amount": amount,
-        "eway_bill": "PENDING",
+        "eway_bill": eway_bill_val,
+        "eway_bill_no": eway_bill_no_val,
         "asn_no": "ASN/26/000797",
         "mode_of_transp": "Tempo",
         "dock_code": "",

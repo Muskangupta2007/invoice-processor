@@ -92,6 +92,7 @@ def sync_to_google_sheet(company):
             'Item Description': doc.get('item_description', ''),
             'Invoice Amt': doc.get('amount', 0.0),
             'Eway Bill': doc.get('eway_bill', ''),
+            'E way Bill no': doc.get('eway_bill_no', ''),
             'ASN No': doc.get('asn_no', ''),
             'Mode of Transp': doc.get('mode_of_transp', ''),
             'Dock Code': doc.get('dock_code', ''),
@@ -161,36 +162,35 @@ def sync_to_google_sheet(company):
             })
             row_idx_counter += 1
             
-    # 3. Format Pending MRNs
+    # 3. Format Pending MRNs (Invoices pending MRNs, matching Invoices format)
     formatted_pending = []
-    # Invoices pending
+    pending_idx = 1
     for inv in invoices:
         status = str(inv.get('mrn_status', '')).upper()
         mrn_no = inv.get('mrn_no')
         if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
             formatted_pending.append({
-                'Type': 'Invoice',
-                'Doc No': inv.get('doc_no', ''),
-                'Doc Date': inv.get('doc_date', ''),
+                'S.No': pending_idx,
+                'Invoice No': inv.get('doc_no', ''),
+                'Invoice Date': inv.get('doc_date', ''),
+                'Challan No': inv.get('challan_no', ''),
                 'Bill To': inv.get('bill_to', ''),
                 'PO/WO No': inv.get('po_wo_no', ''),
-                'Amount': inv.get('amount', 0.0),
+                'Item Description': inv.get('item_description', ''),
+                'Invoice Amt': inv.get('amount', 0.0),
+                'Eway Bill': inv.get('eway_bill', ''),
+                'E way Bill no': inv.get('eway_bill_no', ''),
+                'ASN No': inv.get('asn_no', ''),
+                'Mode of Transp': inv.get('mode_of_transp', ''),
+                'Dock Code': inv.get('dock_code', ''),
+                'Delivery Date': inv.get('delivery_date', ''),
+                'Delivery Site': inv.get('delivery_site', ''),
+                'MRN Status': inv.get('mrn_status', 'PENDING'),
+                'MRN Date': inv.get('mrn_date', ''),
+                'MRN No': inv.get('mrn_no', ''),
                 'Remarks': inv.get('remarks', '')
             })
-    # Challans pending
-    for chal in challans:
-        status = str(chal.get('mrn_status', '')).upper()
-        mrn_no = chal.get('mrn_no')
-        if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
-            formatted_pending.append({
-                'Type': 'Delivery Challan',
-                'Doc No': chal.get('doc_no', ''),
-                'Doc Date': chal.get('doc_date', ''),
-                'Bill To': chal.get('bill_to', ''),
-                'PO/WO No': chal.get('po_wo_no', ''),
-                'Amount': chal.get('amount', 0.0),
-                'Remarks': chal.get('remarks', '')
-            })
+            pending_idx += 1
             
     # POST payload to Apps Script Web App
     payload = {
@@ -251,6 +251,7 @@ def sync_from_google_sheet(company):
             'Item Description': 'item_description',
             'Invoice Amt': 'amount',
             'Eway Bill': 'eway_bill',
+            'E way Bill no': 'eway_bill_no',
             'ASN No': 'asn_no',
             'Mode of Transp': 'mode_of_transp',
             'Dock Code': 'dock_code',
@@ -285,6 +286,25 @@ def sync_from_google_sheet(company):
                     inv_db['amount'] = 0.0
             else:
                 inv_db['amount'] = 0.0
+                
+            # Clean and enforce E-way bill rules
+            eway = str(inv_db.get('eway_bill_no') or inv_db.get('eway_bill') or '').strip()
+            is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+            
+            try:
+                amt = float(inv_db.get('amount') or 0.0)
+            except (ValueError, TypeError):
+                amt = 0.0
+                
+            if is_custom_eway:
+                inv_db['eway_bill_no'] = eway
+                inv_db['eway_bill'] = "DONE"
+            else:
+                inv_db['eway_bill_no'] = ""
+                if amt < 50000:
+                    inv_db['eway_bill'] = "N/A"
+                else:
+                    inv_db['eway_bill'] = "PENDING"
                 
             parsed_invoices.append(inv_db)
             

@@ -36,6 +36,21 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+def requires_settings_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization")
+        if token and token.startswith("Bearer "):
+            token = token.split(" ")[1]
+        else:
+            token = request.args.get("token")
+            
+        expected_token = db.get_setting("settings_password", "settings2026")
+        if not token or token != expected_token:
+            return jsonify({"status": "error", "message": "Incorrect Settings Lock password."}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
@@ -63,7 +78,7 @@ def login():
 # --- SETTINGS ENDPOINTS ---
 
 @app.route('/api/settings', methods=['GET'])
-@requires_auth
+@requires_settings_auth
 def get_settings():
     azure_endpoint = db.get_setting("azure_endpoint", "")
     api_key = db.get_setting("azure_api_key", "")
@@ -101,7 +116,7 @@ def get_settings():
     })
 
 @app.route('/api/settings', methods=['POST'])
-@requires_auth
+@requires_settings_auth
 def save_settings():
     data = request.json or {}
     azure_endpoint = data.get("azure_endpoint")
@@ -119,9 +134,10 @@ def save_settings():
     
     admin_user = data.get("admin_username")
     admin_pass = data.get("admin_password")
+    settings_lock_pass = data.get("settings_lock_password")
     current_pass = data.get("current_password")
     
-    if admin_user or admin_pass:
+    if admin_user or admin_pass or settings_lock_pass:
         expected_pass = db.get_setting("admin_password", "invosync2026")
         if not current_pass or current_pass != expected_pass:
             return jsonify({"status": "error", "message": "Verification failed: Incorrect current password. Settings not saved."}), 400
@@ -130,6 +146,8 @@ def save_settings():
             db.save_setting("admin_username", admin_user.strip())
         if admin_pass:
             db.save_setting("admin_password", admin_pass.strip())
+        if settings_lock_pass:
+            db.save_setting("settings_password", settings_lock_pass.strip())
             
     if azure_endpoint is not None:
         db.save_setting("azure_endpoint", azure_endpoint.strip())
@@ -180,7 +198,7 @@ def save_settings():
     return jsonify({"status": "success", "message": "Settings updated successfully."})
 
 @app.route('/api/settings/test-teams', methods=['POST'])
-@requires_auth
+@requires_settings_auth
 def test_teams():
     webhook_url = db.get_setting("teams_webhook_url")
     if not webhook_url:
@@ -476,6 +494,293 @@ def download_report(company, report_type):
     doc_type = request.args.get('doc_type', 'Invoice')
     documents = db.get_documents(company, doc_type)
     
+    # Custom high-fidelity openpyxl paths for pending_mrn and pending_po
+    if report_type in ["pending_mrn", "pending_po"]:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        
+        if report_type == "pending_mrn":
+            sheet_name = "Pending MRNs"
+            ws.title = sheet_name
+            
+            # Filter by the requested doc_type
+            pending_list = [d for d in db.get_documents(company, doc_type) if str(d.get('mrn_status', '')).upper() != 'DONE']
+            
+            if doc_type == 'Invoice':
+                cols = [
+                    'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
+                    'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'E way Bill no', 'ASN No', 'Mode of Transp',
+                    'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+                ]
+            else:
+                cols = [
+                    'S.No', 'Delivery Challan', 'Item Description', 'Deliver Qty', 'UOM',
+                    'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+                    'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 'Remarks'
+                ]
+                
+            ws.append(cols)
+            
+            # Formatting headers
+            header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+            for col_idx in range(1, len(cols) + 1):
+                cell = ws.cell(row=1, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+            sorted_pending = sorted(pending_list, key=lambda x: x['id'])
+            
+            row_idx_counter = 1
+            for doc in sorted_pending:
+                if doc_type == 'Invoice':
+                    row_data = []
+                    for col in cols:
+                        if col == 'S.No':
+                            row_data.append(row_idx_counter)
+                        elif col == 'Invoice No':
+                            row_data.append(doc.get('doc_no', ''))
+                        elif col == 'Invoice Date':
+                            row_data.append(doc.get('doc_date', ''))
+                        elif col == 'Challan No':
+                            row_data.append(doc.get('challan_no', ''))
+                        elif col == 'Bill To':
+                            row_data.append(doc.get('bill_to', ''))
+                        elif col == 'PO/WO No':
+                            row_data.append(doc.get('po_wo_no', ''))
+                        elif col == 'Item Description':
+                            row_data.append(doc.get('item_description', ''))
+                        elif col == 'Invoice Amt':
+                            try:
+                                val = float(doc.get('amount') or 0.0)
+                            except ValueError:
+                                val = doc.get('amount')
+                            row_data.append(val)
+                        elif col == 'Eway Bill':
+                            row_data.append(doc.get('eway_bill', ''))
+                        elif col == 'E way Bill no':
+                            row_data.append(doc.get('eway_bill_no', ''))
+                        elif col == 'ASN No':
+                            row_data.append(doc.get('asn_no', ''))
+                        elif col == 'Mode of Transp':
+                            row_data.append(doc.get('mode_of_transp', ''))
+                        elif col == 'Dock Code':
+                            row_data.append(doc.get('dock_code', ''))
+                        elif col == 'Delivery Date':
+                            row_data.append(doc.get('delivery_date', ''))
+                        elif col == 'Delivery Site':
+                            row_data.append(doc.get('delivery_site', ''))
+                        elif col == 'MRN Status':
+                            row_data.append(doc.get('mrn_status', 'PENDING'))
+                        elif col == 'MRN Date':
+                            row_data.append(doc.get('mrn_date', ''))
+                        elif col == 'MRN No':
+                            row_data.append(doc.get('mrn_no', ''))
+                        elif col == 'Remarks':
+                            row_data.append(doc.get('remarks', ''))
+                        else:
+                            row_data.append('')
+                    ws.append(row_data)
+                    row_idx_counter += 1
+                else: # Delivery Challan
+                    items = str(doc.get('item_description') or '').split('\n')
+                    qtys = str(doc.get('deliver_qty') or '').split('\n')
+                    uoms = str(doc.get('uom') or '').split('\n')
+                    prices = str(doc.get('unit_price') or '').split('\n')
+                    po_qtys = str(doc.get('po_qty') or '').split('\n')
+                    
+                    max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys))
+                    max_len = max(max_len, 1)
+                    
+                    items += [''] * (max_len - len(items))
+                    qtys += [''] * (max_len - len(qtys))
+                    uoms += [''] * (max_len - len(uoms))
+                    prices += [''] * (max_len - len(prices))
+                    po_qtys += [''] * (max_len - len(po_qtys))
+                    
+                    for i in range(max_len):
+                        row_data = []
+                        for col in cols:
+                            if col == 'S.No':
+                                row_data.append(row_idx_counter)
+                            elif col == 'Delivery Challan':
+                                row_data.append(doc.get('doc_no', ''))
+                            elif col == 'Item Description':
+                                row_data.append(items[i])
+                            elif col == 'Deliver Qty':
+                                row_data.append(qtys[i])
+                            elif col == 'UOM':
+                                row_data.append(uoms[i])
+                            elif col == 'Unit Price':
+                                row_data.append(prices[i])
+                            elif col == 'Delivery Date':
+                                row_data.append(doc.get('doc_date', ''))
+                            elif col == 'Delivery Location':
+                                row_data.append(doc.get('delivery_site', ''))
+                            elif col == 'PO Status':
+                                row_data.append(doc.get('po_status', ''))
+                            elif col == 'PO Number':
+                                row_data.append(doc.get('po_wo_no', ''))
+                            elif col == 'PO Qty':
+                                row_data.append(po_qtys[i])
+                            elif col == 'Difference Between Delivery & PO Qty':
+                                d_val = 0.0
+                                p_val = 0.0
+                                try:
+                                    if qtys[i]:
+                                        d_val = float(qtys[i].replace(',', '').strip())
+                                except ValueError:
+                                    pass
+                                try:
+                                    if po_qtys[i]:
+                                        p_val = float(po_qtys[i].replace(',', '').strip())
+                                except ValueError:
+                                    pass
+                                diff = d_val - p_val
+                                diff_str = str(int(diff)) if diff.is_integer() else f"{diff:.2f}"
+                                row_data.append(diff_str)
+                            elif col == 'Invoice Number':
+                                row_data.append(doc.get('invoice_no', ''))
+                            elif col == 'Remarks':
+                                row_data.append(doc.get('remarks', ''))
+                            else:
+                                row_data.append('')
+                        ws.append(row_data)
+                        row_idx_counter += 1
+                        
+        elif report_type == "pending_po":
+            sheet_name = "Pending POs"
+            ws.title = sheet_name
+            
+            # Filter by Challan
+            pending_po_list = [d for d in db.get_documents(company, 'Challan') if str(d.get('po_status', '')).upper() != 'CLOSED']
+            
+            cols = [
+                'S.No', 'Delivery Challan', 'Item Description', 'Deliver Qty', 'UOM',
+                'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+                'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 'Remarks'
+            ]
+            
+            ws.append(cols)
+            
+            # Formatting headers
+            header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+            for col_idx in range(1, len(cols) + 1):
+                cell = ws.cell(row=1, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+            sorted_pending = sorted(pending_po_list, key=lambda x: x['id'])
+            
+            row_idx_counter = 1
+            for doc in sorted_pending:
+                items = str(doc.get('item_description') or '').split('\n')
+                qtys = str(doc.get('deliver_qty') or '').split('\n')
+                uoms = str(doc.get('uom') or '').split('\n')
+                prices = str(doc.get('unit_price') or '').split('\n')
+                po_qtys = str(doc.get('po_qty') or '').split('\n')
+                
+                max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys))
+                max_len = max(max_len, 1)
+                
+                items += [''] * (max_len - len(items))
+                qtys += [''] * (max_len - len(qtys))
+                uoms += [''] * (max_len - len(uoms))
+                prices += [''] * (max_len - len(prices))
+                po_qtys += [''] * (max_len - len(po_qtys))
+                
+                for i in range(max_len):
+                    row_data = []
+                    for col in cols:
+                        if col == 'S.No':
+                            row_data.append(row_idx_counter)
+                        elif col == 'Delivery Challan':
+                            row_data.append(doc.get('doc_no', ''))
+                        elif col == 'Item Description':
+                            row_data.append(items[i])
+                        elif col == 'Deliver Qty':
+                            row_data.append(qtys[i])
+                        elif col == 'UOM':
+                            row_data.append(uoms[i])
+                        elif col == 'Unit Price':
+                            row_data.append(prices[i])
+                        elif col == 'Delivery Date':
+                            row_data.append(doc.get('doc_date', ''))
+                        elif col == 'Delivery Location':
+                            row_data.append(doc.get('delivery_site', ''))
+                        elif col == 'PO Status':
+                            row_data.append(doc.get('po_status', ''))
+                        elif col == 'PO Number':
+                            row_data.append(doc.get('po_wo_no', ''))
+                        elif col == 'PO Qty':
+                            row_data.append(po_qtys[i])
+                        elif col == 'Difference Between Delivery & PO Qty':
+                            d_val = 0.0
+                            p_val = 0.0
+                            try:
+                                if qtys[i]:
+                                    d_val = float(qtys[i].replace(',', '').strip())
+                            except ValueError:
+                                pass
+                            try:
+                                if po_qtys[i]:
+                                    p_val = float(po_qtys[i].replace(',', '').strip())
+                            except ValueError:
+                                pass
+                            diff = d_val - p_val
+                            diff_str = str(int(diff)) if diff.is_integer() else f"{diff:.2f}"
+                            row_data.append(diff_str)
+                        elif col == 'Invoice Number':
+                            row_data.append(doc.get('invoice_no', ''))
+                        elif col == 'Remarks':
+                            row_data.append(doc.get('remarks', ''))
+                        else:
+                            row_data.append('')
+                    ws.append(row_data)
+                    row_idx_counter += 1
+
+        # Format rows & wrap newlines
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+            for cell in row:
+                if cell.column == 8 and report_type == "pending_mrn" and doc_type == 'Invoice':
+                    cell.number_format = '₹#,##0.00'
+                if cell.value and isinstance(cell.value, str) and '\n' in cell.value:
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+        # Auto fit column widths
+        for col in ws.columns:
+            max_len = 0
+            for cell in col:
+                if cell.value is not None:
+                    lines = str(cell.value).split('\n')
+                    for line in lines:
+                        if len(line) > max_len:
+                            max_len = len(line)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 100)
+            
+        output = io.BytesIO()
+        wb.save(output)
+        wb.close()
+        output.seek(0)
+        
+        file_suffix = "pending_mrn" if report_type == "pending_mrn" else "pending_po"
+        file_name = f"{company.replace(' ', '_')}_{file_suffix}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=file_name,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # Standard pandas-based export for volume, sequence_gap, pending_eway
     df = pd.DataFrame()
     sheet_name = "Report"
     
@@ -506,33 +811,6 @@ def download_report(company, report_type):
             
         sheet_name = "Volume Report"
         
-    elif report_type == "pending_mrn":
-        pending_list = [d for d in db.get_documents(company) if str(d.get('mrn_status', '')).upper() != 'DONE']
-        if pending_list:
-            df = pd.DataFrame(pending_list)[[
-                'doc_type', 'doc_no', 'doc_date', 'bill_to', 'po_wo_no', 'amount',
-                'mrn_status', 'mrn_date', 'mrn_no', 'remarks'
-            ]].rename(columns={
-                'doc_type': 'Type', 'doc_no': 'Doc No', 'doc_date': 'Doc Date',
-                'bill_to': 'Bill To', 'po_wo_no': 'PO/WO No', 'amount': 'Amount',
-                'mrn_status': 'MRN Status', 'mrn_date': 'MRN Date', 'mrn_no': 'MRN No', 'remarks': 'Remarks'
-            })
-        sheet_name = "Pending MRNs"
-        
-    elif report_type == "pending_po":
-        pending_po_list = [d for d in documents if d.get('doc_type') == 'Challan' and str(d.get('po_status', '')).upper() != 'CLOSED']
-        if pending_po_list:
-            df = pd.DataFrame(pending_po_list)[[
-                'doc_no', 'item_description', 'deliver_qty', 'uom', 'unit_price',
-                'delivery_date', 'po_wo_no', 'po_qty', 'po_status', 'invoice_no', 'remarks'
-            ]].rename(columns={
-                'doc_no': 'Delivery Challan No', 'item_description': 'Item Description',
-                'deliver_qty': 'Deliver Qty', 'uom': 'UOM', 'unit_price': 'Unit Price',
-                'delivery_date': 'Delivery Date', 'po_wo_no': 'PO Number', 'po_qty': 'PO Qty',
-                'po_status': 'PO Status', 'invoice_no': 'Invoice Number', 'remarks': 'Remarks'
-            })
-        sheet_name = "Pending POs"
-        
     elif report_type == "sequence_gap":
         seq_check = db.check_invoice_sequence(company, doc_type)
         gaps = seq_check.get("missing_numbers", [])
@@ -562,6 +840,7 @@ def download_report(company, report_type):
         download_name=file_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 
 def is_local_request(remote_addr):
     import socket
