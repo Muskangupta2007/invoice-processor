@@ -1621,15 +1621,48 @@ function getRowsData(sheet) {
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
   if (lastRow < 2) return rows;
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  
+  // Find the header row dynamically
+  var headerRowIndex = 1;
+  var headers = [];
+  for (var r = 1; r <= Math.min(10, lastRow); r++) {
+    var rowValues = sheet.getRange(r, 1, 1, lastCol).getValues()[0];
+    var hasInvoiceNo = rowValues.some(function(val) {
+      var s = String(val).trim().toLowerCase();
+      return s === "invoice no" || s === "delivery challan no" || s === "invoice number";
+    });
+    if (hasInvoiceNo) {
+      headerRowIndex = r;
+      headers = rowValues;
+      break;
+    }
+  }
+  
+  if (headers.length === 0) {
+    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    headerRowIndex = 1;
+  }
+  
+  var startRow = headerRowIndex + 1;
+  if (lastRow < startRow) return rows;
+  
+  var values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getValues();
   for (var i = 0; i < values.length; i++) {
     var row = {};
+    var hasData = false;
     for (var j = 0; j < headers.length; j++) {
-      var header = headers[j];
-      if (header) row[header] = values[i][j];
+      var header = String(headers[j]).trim();
+      if (header) {
+        var cellVal = values[i][j];
+        row[header] = cellVal;
+        if (cellVal !== "" && cellVal !== null && cellVal !== undefined) {
+          hasData = true;
+        }
+      }
     }
-    rows.push(row);
+    if (hasData) {
+      rows.push(row);
+    }
   }
   return rows;
 }
