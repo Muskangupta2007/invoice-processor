@@ -75,6 +75,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const missingActionTitle = document.getElementById("missing-action-title");
     const sequenceGapsList = document.getElementById("sequence-gaps-list");
     const missingMrnsList = document.getElementById("missing-mrns-list");
+    const ewayDivider = document.getElementById("eway-divider");
+    const ewayAlertSection = document.getElementById("eway-alert-section");
+    const ewayBillsList = document.getElementById("eway-bills-list");
     
     // Ledger Controls & Table
     const ledgerSearch = document.getElementById("ledger-search");
@@ -620,6 +623,9 @@ document.addEventListener("DOMContentLoaded", () => {
             statPendingMrns.innerText = state.reports.pending_mrn;
             statPendingEway.innerText = state.reports.pending_eway;
             
+            ewayDivider.style.display = "block";
+            ewayAlertSection.style.display = "block";
+            
             const missingList = state.invoices.filter(inv => !inv.mrn_no || inv.mrn_status !== "DONE");
             if (missingList.length > 0) {
                 missingMrnsList.className = "alert-list";
@@ -640,8 +646,38 @@ document.addEventListener("DOMContentLoaded", () => {
                 missingMrnsList.className = "alert-list empty-state";
                 missingMrnsList.innerHTML = `<p>No records with pending MRN status.</p>`;
             }
+            
+            // Render pending E-Way Bills
+            const pendingEwayList = state.invoices.filter(inv => {
+                const amt = parseFloat(inv.amount || 0);
+                const isInvoice = inv.doc_type === 'Invoice';
+                const isEwayBlank = !String(inv.eway_bill_no || '').trim();
+                return isInvoice && amt >= 50000 && isEwayBlank;
+            });
+            if (pendingEwayList.length > 0) {
+                ewayBillsList.className = "alert-list";
+                ewayBillsList.innerHTML = pendingEwayList.map(inv => `
+                    <div class="alert-item alert-item-warning">
+                        <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is ≥ ₹50,000 but missing E-Way Bill No.</span>
+                        <span class="alert-link edit-eway-trigger" data-doc-no="${inv.doc_no}">Update E-Way Bill</span>
+                    </div>
+                `).join("");
+
+                document.querySelectorAll(".edit-eway-trigger").forEach(link => {
+                    link.addEventListener("click", () => {
+                        const docNo = link.getAttribute("data-doc-no");
+                        openEditModal(docNo);
+                    });
+                });
+            } else {
+                ewayBillsList.className = "alert-list empty-state";
+                ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
+            }
         } else {
             statPendingMrns.innerText = state.reports.pending_po;
+            
+            ewayDivider.style.display = "none";
+            ewayAlertSection.style.display = "none";
             
             const pendingPoList = state.invoices.filter(inv => String(inv.po_status).toUpperCase() === "OPEN" || !inv.po_status);
             if (pendingPoList.length > 0) {
