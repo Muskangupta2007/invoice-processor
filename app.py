@@ -77,6 +77,17 @@ def login():
 
 # --- SETTINGS ENDPOINTS ---
 
+@app.route('/api/settings/status', methods=['GET'])
+@requires_auth
+def get_settings_status():
+    api_key = db.get_setting("azure_api_key", "")
+    webhook_url = db.get_setting("teams_webhook_url", "")
+    return jsonify({
+        "status": "success",
+        "azure_api_key_configured": bool(api_key),
+        "teams_webhook_url": bool(webhook_url)
+    })
+
 @app.route('/api/settings', methods=['GET'])
 @requires_settings_auth
 def get_settings():

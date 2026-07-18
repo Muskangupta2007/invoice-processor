@@ -606,7 +606,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => console.error("Error fetching analytical reports:", err));
 
-        fetch("/api/settings", {
+        fetch("/api/settings/status", {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
