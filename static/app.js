@@ -1623,6 +1623,24 @@ function getRowsData(sheet) {
   var lastCol = sheet.getLastColumn();
   if (lastRow < 2) return rows;
   
+  // Determine sheet type to map generic "Column X" headers
+  var sheetName = sheet.getName();
+  var expectedCols = [];
+  if (sheetName === "Invoices") {
+    expectedCols = [
+      'S.No', 'Invoice No', 'Invoice Date', 'Challan No', 'Bill To',
+      'PO/WO No', 'Item Description', 'Invoice Amt', 'Eway Bill', 'E way Bill no', 'ASN No', 'Mode of Transp',
+      'Dock Code', 'Delivery Date', 'Delivery Site', 'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+    ];
+  } else if (sheetName === "Delivery Challans") {
+    expectedCols = [
+      'S.No', 'Delivery Challan No', 'Item Description', 'Deliver Qty', 'UOM',
+      'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+      'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 
+      'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
+    ];
+  }
+  
   // Find the header row dynamically
   var headerRowIndex = 1;
   var headers = [];
@@ -1630,7 +1648,7 @@ function getRowsData(sheet) {
     var rowValues = sheet.getRange(r, 1, 1, lastCol).getValues()[0];
     var hasInvoiceNo = rowValues.some(function(val) {
       var s = String(val).trim().toLowerCase();
-      return s === "invoice no" || s === "delivery challan no" || s === "invoice number";
+      return s === "invoice no" || s === "delivery challan no" || s === "invoice number" || s === "s.no";
     });
     if (hasInvoiceNo) {
       headerRowIndex = r;
@@ -1652,7 +1670,16 @@ function getRowsData(sheet) {
     var row = {};
     var hasData = false;
     for (var j = 0; j < headers.length; j++) {
-      var header = String(headers[j]).trim();
+      var rawHeader = String(headers[j]).trim();
+      
+      // If the header starts with "Column" or is empty, map by index
+      var header = rawHeader;
+      if (rawHeader.toLowerCase().indexOf("column") === 0 || !rawHeader) {
+        if (j < expectedCols.length) {
+          header = expectedCols[j];
+        }
+      }
+      
       if (header) {
         var cellVal = values[i][j];
         row[header] = cellVal;
