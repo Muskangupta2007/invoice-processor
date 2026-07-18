@@ -657,16 +657,51 @@ document.addEventListener("DOMContentLoaded", () => {
             if (pendingEwayList.length > 0) {
                 ewayBillsList.className = "alert-list";
                 ewayBillsList.innerHTML = pendingEwayList.map(inv => `
-                    <div class="alert-item alert-item-warning">
+                    <div class="alert-item alert-item-warning" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px;">
                         <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is ≥ ₹50,000 but missing E-Way Bill No.</span>
-                        <span class="alert-link edit-eway-trigger" data-doc-no="${inv.doc_no}">Update E-Way Bill</span>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                            <input type="text" class="eway-inline-input" data-doc-no="${inv.doc_no}" placeholder="Enter E-Way Bill No" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); width: 150px; font-size: 0.85rem;">
+                            <button class="btn btn-primary save-eway-inline-btn" data-doc-no="${inv.doc_no}" style="padding: 4px 10px; font-size: 0.85rem; border-radius: 4px; height: 28px; line-height: 1;">Save</button>
+                        </div>
                     </div>
                 `).join("");
 
-                document.querySelectorAll(".edit-eway-trigger").forEach(link => {
-                    link.addEventListener("click", () => {
-                        const docNo = link.getAttribute("data-doc-no");
-                        openEditModal(docNo);
+                document.querySelectorAll(".save-eway-inline-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        const docNo = btn.getAttribute("data-doc-no");
+                        const inputEl = document.querySelector(`.eway-inline-input[data-doc-no="${CSS.escape(docNo)}"]`);
+                        const ewayVal = inputEl ? inputEl.value.trim() : "";
+                        
+                        if (!ewayVal) {
+                            showToast("Please enter a valid E-Way Bill number.", "warning");
+                            return;
+                        }
+                        
+                        showToast(`Saving E-Way Bill for invoice ${docNo}...`);
+                        
+                        const comp = state.activeCompany;
+                        const docType = 'Invoice';
+                        
+                        fetch(`/api/invoices/${encodeURIComponent(comp)}/${encodeURIComponent(docType)}/${encodeURIComponent(docNo)}`, {
+                            method: "PUT",
+                            headers: getAuthHeaders(true),
+                            body: JSON.stringify({ eway_bill: ewayVal })
+                        })
+                        .then(checkAuthResponse)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === "success") {
+                                showToast(`E-Way Bill for ${docNo} updated successfully!`);
+                                // Refresh data
+                                fetchData();
+                            } else {
+                                showToast(data.message, "danger");
+                            }
+                        })
+                        .catch(err => {
+                            console.error("Error saving inline E-Way Bill:", err);
+                            showToast("Failed to save inline E-Way Bill.", "danger");
+                        });
                     });
                 });
             } else {
