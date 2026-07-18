@@ -10,9 +10,13 @@ import time
 try:
     import psycopg2
     import psycopg2.extras
+    from psycopg2.pool import ThreadedConnectionPool
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
+    ThreadedConnectionPool = None
+
+db_pool = None
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "invoices.db")
 
@@ -62,8 +66,9 @@ class PostgresCursorWrapper:
         self.cursor.close()
 
 class PostgresConnectionWrapper:
-    def __init__(self, real_conn):
+    def __init__(self, real_conn, is_from_pool=False):
         self.conn = real_conn
+        self.is_from_pool = is_from_pool
 
     def cursor(self):
         return PostgresCursorWrapper(self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor))
@@ -75,13 +80,32 @@ class PostgresConnectionWrapper:
         self.conn.rollback()
 
     def close(self):
-        self.conn.close()
+        if self.is_from_pool and db_pool:
+            db_pool.putconn(self.conn)
+        else:
+            self.conn.close()
 
 def get_db_connection():
+    global db_pool
     db_url = os.environ.get('DATABASE_URL')
     if db_url and HAS_PSYCOPG2:
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+            
+        if db_pool is None and ThreadedConnectionPool:
+            try:
+                db_pool = ThreadedConnectionPool(1, 20, db_url)
+                print("[DB Pool] Connection pool initialized successfully.")
+            except Exception as e:
+                print(f"[DB Pool] Error initializing pool: {e}")
+                
+        if db_pool:
+            try:
+                conn = db_pool.getconn()
+                return PostgresConnectionWrapper(conn, is_from_pool=True)
+            except Exception as e:
+                print(f"[DB Pool] Failed to fetch connection: {e}. Falling back to single connection.")
+                
         conn = psycopg2.connect(db_url)
         return PostgresConnectionWrapper(conn)
     else:
