@@ -439,7 +439,12 @@ def get_reports():
         
         pending_po = sum(1 for doc in documents if doc.get('doc_type') == 'Challan' and str(doc.get('po_status', '')).upper() != 'CLOSED')
         pending_mrn = sum(1 for doc in documents if str(doc.get('mrn_status', '')).upper() != 'DONE')
-        pending_eway = sum(1 for doc in documents if doc.get('doc_type') == 'Invoice' and (doc.get('amount') or 0.0) > 50000 and str(doc.get('eway_bill', '')).upper() == 'PENDING')
+        pending_eway = sum(
+            1 for doc in documents 
+            if doc.get('doc_type') == 'Invoice' 
+            and (doc.get('amount') or 0.0) >= 50000 
+            and not str(doc.get('eway_bill_no') or '').strip()
+        )
         
         done_mrn = total_count - pending_mrn
         
@@ -834,13 +839,18 @@ def download_report(company, report_type):
         sheet_name = "Sequence Gaps"
         
     elif report_type == "pending_eway":
-        pending_eway_list = [d for d in documents if d.get('doc_type') == 'Invoice' and (d.get('amount') or 0.0) > 50000 and str(d.get('eway_bill', '')).upper() == 'PENDING']
+        pending_eway_list = [
+            d for d in documents 
+            if d.get('doc_type') == 'Invoice' 
+            and (d.get('amount') or 0.0) >= 50000 
+            and not str(d.get('eway_bill_no') or '').strip()
+        ]
         if pending_eway_list:
             df = pd.DataFrame(pending_eway_list)[[
-                'doc_no', 'doc_date', 'bill_to', 'po_wo_no', 'amount', 'eway_bill', 'remarks'
+                'doc_no', 'doc_date', 'bill_to', 'po_wo_no', 'amount', 'eway_bill_no', 'remarks'
             ]].rename(columns={
                 'doc_no': 'Invoice No', 'doc_date': 'Invoice Date', 'bill_to': 'Bill To',
-                'po_wo_no': 'PO/WO No', 'amount': 'Invoice Amt', 'eway_bill': 'Eway Bill', 'remarks': 'Remarks'
+                'po_wo_no': 'PO/WO No', 'amount': 'Invoice Amt', 'eway_bill_no': 'E way Bill no', 'remarks': 'Remarks'
             })
         sheet_name = "Pending Eway Bills"
         
