@@ -493,7 +493,8 @@ def download_excel(company, file_type):
     return send_file(
         excel_path,
         as_attachment=True,
-        download_name=file_name
+        download_name=file_name,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 @app.route('/api/download-report/<company>/<report_type>', methods=['GET'])

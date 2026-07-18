@@ -427,7 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const downloadUrl = `/api/download-excel/${encodeURIComponent(state.activeCompany)}/${fileType}${tokenStr}`;
                 const link = document.createElement('a');
                 link.href = downloadUrl;
-                link.download = '';
+                link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -449,7 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     showToast(data.message || "Downloading file...");
                     const link = document.createElement('a');
                     link.href = data.url;
-                    link.download = '';
+                    link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -465,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const downloadUrl = `/api/download-excel/${encodeURIComponent(state.activeCompany)}/${fileType}${tokenStr}`;
                 const link = document.createElement('a');
                 link.href = downloadUrl;
-                link.download = '';
+                link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -487,7 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = '';
+            link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileType === 'pending' ? 'Pending_MRNs' : 'Main_Ledger'}.xlsx`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -507,7 +507,8 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const link = document.createElement('a');
         link.href = url;
-        link.download = '';
+        const fileSuffix = reportType === "main" ? "Main_Ledger" : reportType;
+        link.download = `${state.activeCompany.replace(/\s+/g, '_')}_${fileSuffix}.xlsx`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
