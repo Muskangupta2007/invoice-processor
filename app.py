@@ -493,6 +493,7 @@ def download_excel(company, file_type):
     response = send_file(
         excel_path,
         as_attachment=True,
+        download_name=file_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
@@ -789,6 +790,7 @@ def download_report(company, report_type):
         response = send_file(
             output,
             as_attachment=True,
+            download_name=file_name,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
@@ -851,6 +853,7 @@ def download_report(company, report_type):
     response = send_file(
         output,
         as_attachment=True,
+        download_name=file_name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
