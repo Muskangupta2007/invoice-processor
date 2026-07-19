@@ -954,8 +954,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 const uoms = (inv.uom || '').split('\n');
                 const prices = (inv.unit_price || '').split('\n');
                 const po_qties = (inv.po_qty || '').split('\n');
+                const po_statuses = (inv.po_status || '').split('\n');
                 
-                const numItems = Math.max(descs.length, qties.length, uoms.length, prices.length, po_qties.length, 1);
+                const numItems = Math.max(descs.length, qties.length, uoms.length, prices.length, po_qties.length, po_statuses.length, 1);
                 
                 for (let i = 0; i < numItems; i++) {
                     const desc = descs[i] || '';
@@ -963,6 +964,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const uom = uoms[i] || '';
                     const price = prices[i] || '';
                     const po_qty = po_qties[i] || '';
+                    const po_status = po_statuses[i] || '';
                     const diff = calculateDifference(qty, po_qty);
                     
                     let rowHtml = '<tr>';
@@ -981,7 +983,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (i === 0) {
                         rowHtml += `<td rowspan="${numItems}">${inv.delivery_date || ''}</td>`;
                         rowHtml += `<td rowspan="${numItems}">${inv.delivery_site || ''}</td>`;
-                        rowHtml += `<td rowspan="${numItems}">${inv.po_status || ''}</td>`;
+                    }
+                    
+                    rowHtml += `<td>${po_status}</td>`;
+                    
+                    if (i === 0) {
                         rowHtml += `<td rowspan="${numItems}">${inv.po_wo_no || ''}</td>`;
                     }
                     
