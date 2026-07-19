@@ -1323,6 +1323,12 @@ def start_excel_watcher():
                                     sync_excel_to_db(comp)
                                     # 2. Regenerate pending list and re-format Excel
                                     sync_to_excel(comp, sync_main=False, sync_pending=True)
+                                    # 3. Push manual edits to Google Sheets to keep them in sync
+                                    try:
+                                        import gsheet
+                                        gsheet.sync_to_google_sheet(comp)
+                                    except Exception as gs_ex:
+                                        print(f"[Watcher] Google Sheets push sync failed for {comp}: {gs_ex}")
                                 except Exception as ex:
                                     print(f"[Watcher] Sync failed for {comp}: {ex}")
             except Exception as e:
