@@ -204,7 +204,11 @@ def sync_to_google_sheet(company):
         print(f"[Google Sheets] Pushing update to Google Sheet for {company}...")
         resp = requests.post(sync_url, json=payload, timeout=15)
         if resp.status_code == 200:
-            res_data = resp.json()
+            try:
+                res_data = resp.json()
+            except Exception as json_err:
+                print(f"[Google Sheets] JSON Decode Error. Response text was:\n{resp.text[:2000]}")
+                raise json_err
             if res_data.get("status") == "success":
                 # Compute and save the hash to prevent self-sync loop
                 data_hash = compute_data_hash(invoices, challans)
