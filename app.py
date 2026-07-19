@@ -55,6 +55,13 @@ def requires_settings_auth(f):
 def index():
     return send_from_directory('static', 'index.html')
 
+@app.after_request
+def add_header(r):
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    return r
+
 # --- AUTH ENDPOINTS ---
 
 @app.route('/api/login', methods=['POST'])
