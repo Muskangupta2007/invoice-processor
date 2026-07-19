@@ -1765,7 +1765,12 @@ function writeSheetData(sheetName, dataList) {
   }
   if (!sheet) sheet = ss.insertSheet(sheetName);
   sheet.clear();
-  sheet.appendRow(cols);
+  // Clear any data validation rules on the header row (Row 1) to prevent Google Sheets
+  // from rejecting our header names due to column validation constraints (e.g. dropdowns on Row 1).
+  sheet.getRange(1, 1, 1, cols.length).clearDataValidations();
+  // Set headers directly on row 1 to prevent Google Sheets Tables from resetting
+  // column headers to default values (like "Column 1", "Column 2") which happens when using appendRow.
+  sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
   if (dataList.length === 0) return;
   var rowsToWrite = [];
   for (var idx = 0; idx < dataList.length; idx++) {
