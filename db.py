@@ -643,8 +643,9 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                         uoms = str(doc.get('uom') or '').split('\n')
                         prices = str(doc.get('unit_price') or '').split('\n')
                         po_qtys = str(doc.get('po_qty') or '').split('\n')
+                        po_statuses = str(doc.get('po_status') or '').split('\n')
                         
-                        max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys))
+                        max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys), len(po_statuses))
                         max_len = max(max_len, 1)
                         
                         items += [''] * (max_len - len(items))
@@ -652,6 +653,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                         uoms += [''] * (max_len - len(uoms))
                         prices += [''] * (max_len - len(prices))
                         po_qtys += [''] * (max_len - len(po_qtys))
+                        po_statuses += [''] * (max_len - len(po_statuses))
                         
                         for i in range(max_len):
                             row_data = []
@@ -673,7 +675,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                                 elif col == 'Delivery Location':
                                     row_data.append(doc.get('delivery_site', ''))
                                 elif col == 'PO Status':
-                                    row_data.append(doc.get('po_status', ''))
+                                    row_data.append(po_statuses[i])
                                 elif col == 'PO Number':
                                     row_data.append(doc.get('po_wo_no', ''))
                                 elif col == 'PO Qty':
@@ -1211,12 +1213,11 @@ def sync_excel_to_db(company):
                             'bill_to': row_dict.get('bill_to') or 'LARSEN & TOUBRO',
                             'po_wo_no': row_dict.get('po_wo_no'),
                             'delivery_site': row_dict.get('delivery_site'),
-                            'po_status': row_dict.get('po_status'),
                             'mrn_status': row_dict.get('mrn_status') or 'PENDING',
                             'mrn_date': row_dict.get('mrn_date'),
                             'mrn_no': row_dict.get('mrn_no'),
                             'remarks': row_dict.get('remarks'),
-                            '_items': [], '_qtys': [], '_uoms': [], '_prices': [], '_po_qtys': []
+                            '_items': [], '_qtys': [], '_uoms': [], '_prices': [], '_po_qtys': [], '_po_statuses': []
                         }
                     gd = grouped_docs[doc_no]
                     gd['_items'].append(str(row_dict.get('item_description') or '').strip())
@@ -1224,6 +1225,7 @@ def sync_excel_to_db(company):
                     gd['_uoms'].append(str(row_dict.get('uom') or '').strip())
                     gd['_prices'].append(str(row_dict.get('unit_price') or '').strip())
                     gd['_po_qtys'].append(str(row_dict.get('po_qty') or '').strip())
+                    gd['_po_statuses'].append(str(row_dict.get('po_status') or '').strip())
                     
                 for doc_no, gd in grouped_docs.items():
                     gd['item_description'] = "\n".join(gd['_items'])
@@ -1231,8 +1233,9 @@ def sync_excel_to_db(company):
                     gd['uom'] = "\n".join(gd['_uoms'])
                     gd['unit_price'] = "\n".join(gd['_prices'])
                     gd['po_qty'] = "\n".join(gd['_po_qtys'])
+                    gd['po_status'] = "\n".join(gd['_po_statuses'])
                     
-                    for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys']:
+                    for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys', '_po_statuses']:
                         del gd[k]
                         
                     gd['company'] = company

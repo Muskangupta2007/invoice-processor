@@ -112,9 +112,19 @@ def sync_to_google_sheet(company):
         qtys = str(doc.get('deliver_qty') or '').split('\n')
         uoms = str(doc.get('uom') or '').split('\n')
         prices = str(doc.get('unit_price') or '').split('\n')
-        po_qtys = str(doc.get('po_qty') or '').split('\n')
-        
-        max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys))
+        po_qtys = doc.get('po_qty') or ''
+        if isinstance(po_qtys, str):
+            po_qtys = po_qtys.split('\n')
+        else:
+            po_qtys = [str(po_qtys)]
+            
+        po_statuses = doc.get('po_status') or ''
+        if isinstance(po_statuses, str):
+            po_statuses = po_statuses.split('\n')
+        else:
+            po_statuses = [str(po_statuses)]
+            
+        max_len = max(len(items), len(qtys), len(uoms), len(prices), len(po_qtys), len(po_statuses))
         max_len = max(max_len, 1)
         
         # Pad lists
@@ -123,6 +133,7 @@ def sync_to_google_sheet(company):
         uoms += [''] * (max_len - len(uoms))
         prices += [''] * (max_len - len(prices))
         po_qtys += [''] * (max_len - len(po_qtys))
+        po_statuses += [''] * (max_len - len(po_statuses))
         
         for i in range(max_len):
             # Calculate difference for this specific line
@@ -150,7 +161,7 @@ def sync_to_google_sheet(company):
                 'Unit Price': prices[i],
                 'Delivery Date': doc.get('doc_date', ''),
                 'Delivery Location': doc.get('delivery_site', ''),
-                'PO Status': doc.get('po_status', ''),
+                'PO Status': po_statuses[i],
                 'PO Number': doc.get('po_wo_no', ''),
                 'PO Qty': po_qtys[i],
                 'Difference Between Delivery & PO Qty': diff_str,
@@ -329,7 +340,6 @@ def sync_from_google_sheet(company):
                     'bill_to': chal_row.get('Bill To') or 'LARSEN & TOUBRO',
                     'po_wo_no': chal_row.get('PO Number'),
                     'delivery_site': chal_row.get('Delivery Location'),
-                    'po_status': chal_row.get('PO Status'),
                     'mrn_status': chal_row.get('MRN Status') or 'PENDING',
                     'mrn_date': db.clean_date_string(chal_row.get('MRN Date')),
                     'mrn_no': chal_row.get('MRN No'),
@@ -339,7 +349,8 @@ def sync_from_google_sheet(company):
                     '_qtys': [],
                     '_uoms': [],
                     '_prices': [],
-                    '_po_qtys': []
+                    '_po_qtys': [],
+                    '_po_statuses': []
                 }
                 
             gd = grouped_challans[doc_no]
@@ -348,6 +359,7 @@ def sync_from_google_sheet(company):
             gd['_uoms'].append(str(chal_row.get('UOM') or '').strip())
             gd['_prices'].append(str(chal_row.get('Unit Price') or '').strip())
             gd['_po_qtys'].append(str(chal_row.get('PO Qty') or '').strip())
+            gd['_po_statuses'].append(str(chal_row.get('PO Status') or '').strip())
             
         parsed_challans = []
         for doc_no, gd in grouped_challans.items():
@@ -356,8 +368,9 @@ def sync_from_google_sheet(company):
             gd['uom'] = "\n".join(gd['_uoms'])
             gd['unit_price'] = "\n".join(gd['_prices'])
             gd['po_qty'] = "\n".join(gd['_po_qtys'])
+            gd['po_status'] = "\n".join(gd['_po_statuses'])
             
-            for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys']:
+            for k in ['_items', '_qtys', '_uoms', '_prices', '_po_qtys', '_po_statuses']:
                 del gd[k]
                 
             gd['company'] = company
