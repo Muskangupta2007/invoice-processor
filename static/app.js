@@ -1765,12 +1765,19 @@ function writeSheetData(sheetName, dataList) {
   }
   if (!sheet) sheet = ss.insertSheet(sheetName);
   sheet.clear();
-  // Clear any data validation rules on the header row (Row 1) to prevent Google Sheets
-  // from rejecting our header names due to column validation constraints (e.g. dropdowns on Row 1).
-  sheet.getRange(1, 1, 1, cols.length).clearDataValidations();
+  
+  // Clear any existing data validation rules on the entire sheet to prevent old or misplaced validations
+  // (like a validation rule stuck on a column that was moved or rearranged) from causing sync errors.
+  try {
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearDataValidations();
+  } catch (e) {
+    // Fallback if sheet is empty or has no range
+  }
+  
   // Set headers directly on row 1 to prevent Google Sheets Tables from resetting
   // column headers to default values (like "Column 1", "Column 2") which happens when using appendRow.
   sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
+  
   if (dataList.length === 0) return;
   var rowsToWrite = [];
   for (var idx = 0; idx < dataList.length; idx++) {
@@ -1784,6 +1791,28 @@ function writeSheetData(sheetName, dataList) {
   sheet.getRange(2, 1, rowsToWrite.length, cols.length).setValues(rowsToWrite);
   sheet.getRange(2, 1, rowsToWrite.length, cols.length).setWrap(true).setVerticalAlignment("top");
   sheet.getRange(1, 1, 1, cols.length).setFontWeight("bold").setBackground("#f3f3f3");
+  
+  // Re-apply correct validation rules programmatically to the correct columns
+  try {
+    var numRows = rowsToWrite.length;
+    if (sheetName === "Delivery Challans") {
+      // PO Status on Column 9 (Col I)
+      var poRule = SpreadsheetApp.newDataValidation().requireValueInList(['Open', 'Closed'], true).build();
+      sheet.getRange(2, 9, numRows, 1).setDataValidation(poRule);
+      // MRN Status on Column 14 (Col N)
+      var mrnRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE'], true).build();
+      sheet.getRange(2, 14, numRows, 1).setDataValidation(mrnRule);
+    } else if (sheetName === "Invoices" || sheetName === "Pending MRNs") {
+      // Eway Bill on Column 9 (Col I)
+      var ewayRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE', 'N/A'], true).build();
+      sheet.getRange(2, 9, numRows, 1).setDataValidation(ewayRule);
+      // MRN Status on Column 16 (Col P)
+      var mrnRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE'], true).build();
+      sheet.getRange(2, 16, numRows, 1).setDataValidation(mrnRule);
+    }
+  } catch (vErr) {
+    // Ignore validation application errors if range bounds are incorrect
+  }
 }`;
 
     viewGsheetInstructionsBtn.addEventListener("click", () => {
