@@ -16,7 +16,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=2.9.0">
+    <link rel="stylesheet" href="style.css?v=3.0.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -260,7 +260,7 @@
                                 <div class="panel-body">
                                     <!-- Sequence Gaps Sub-Section -->
                                     <div class="alert-section">
-                                        <h3 class="alert-title-main warning accordion-header" id="sequence-audit-title" data-target="sequence-gaps-list">
+                                        <h3 class="alert-title-main warning accordion-header collapsed" id="sequence-audit-title" data-target="sequence-gaps-list">
                                             <div class="header-left">
                                                 <i class="fa-solid fa-circle-exclamation"></i>
                                                 <span id="sequence-audit-label">Sequence Audits</span>
@@ -268,7 +268,7 @@
                                             </div>
                                             <i class="fa-solid fa-chevron-down accordion-chevron"></i>
                                         </h3>
-                                        <div id="sequence-gaps-list" class="alert-list empty-state">
+                                        <div id="sequence-gaps-list" class="alert-list empty-state collapsed">
                                             <p>No sequence gaps detected!</p>
                                         </div>
                                     </div>
@@ -277,7 +277,7 @@
                                     
                                     <!-- Missing MRNs Sub-Section -->
                                     <div class="alert-section">
-                                        <h3 class="alert-title-main danger accordion-header" id="missing-action-title" data-target="missing-mrns-list">
+                                        <h3 class="alert-title-main danger accordion-header collapsed" id="missing-action-title" data-target="missing-mrns-list">
                                             <div class="header-left">
                                                 <i class="fa-solid fa-circle-xmark"></i>
                                                 <span id="missing-action-label">Pending MRN List</span>
@@ -285,7 +285,7 @@
                                             </div>
                                             <i class="fa-solid fa-chevron-down accordion-chevron"></i>
                                         </h3>
-                                        <div id="missing-mrns-list" class="alert-list empty-state">
+                                        <div id="missing-mrns-list" class="alert-list empty-state collapsed">
                                             <p>No documents with pending MRN status.</p>
                                         </div>
                                     </div>
@@ -294,7 +294,7 @@
 
                                     <!-- Pending E-way Bills Sub-Section -->
                                     <div class="alert-section" id="eway-alert-section" style="display: none;">
-                                        <h3 class="alert-title-main warning accordion-header" id="eway-action-title" data-target="eway-bills-list">
+                                        <h3 class="alert-title-main warning accordion-header collapsed" id="eway-action-title" data-target="eway-bills-list">
                                             <div class="header-left">
                                                 <i class="fa-solid fa-truck-ramp-box"></i>
                                                 <span id="eway-action-label">Pending E-Way Bill List</span>
@@ -302,7 +302,7 @@
                                             </div>
                                             <i class="fa-solid fa-chevron-down accordion-chevron"></i>
                                         </h3>
-                                        <div id="eway-bills-list" class="alert-list empty-state">
+                                        <div id="eway-bills-list" class="alert-list empty-state collapsed">
                                             <p>No invoices with pending E-way bill status.</p>
                                         </div>
                                     </div>
@@ -809,6 +809,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=2.9.0"></script>
+    <script src="app.js?v=3.0.0"></script>
 </body>
 </html>

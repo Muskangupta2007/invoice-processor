@@ -614,8 +614,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const seqCountEl = document.getElementById("sequence-audit-count");
         if (seqCountEl) seqCountEl.innerText = gaps.length;
 
+        const setAlertListClass = (el, isEmpty) => {
+            if (!el) return;
+            const isCollapsed = el.classList.contains("collapsed");
+            el.className = "alert-list" + (isEmpty ? " empty-state" : "") + (isCollapsed ? " collapsed" : "");
+        };
+
         if (gaps.length > 0) {
-            sequenceGapsList.className = "alert-list";
+            setAlertListClass(sequenceGapsList, false);
             sequenceGapsList.innerHTML = gaps.map(gapNo => `
                 <div class="alert-item alert-item-warning">
                     <span>Missing sequential ${state.activeDocType}: <strong>${gapNo}</strong></span>
@@ -623,7 +629,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
             `).join("");
         } else {
-            sequenceGapsList.className = "alert-list empty-state";
+            setAlertListClass(sequenceGapsList, true);
             sequenceGapsList.innerHTML = `<p>No sequence gaps detected for ${state.activeCompany} ${state.activeDocType}s!</p>`;
         }
     }
@@ -669,7 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (missingCount) missingCount.innerText = missingList.length;
 
             if (missingList.length > 0) {
-                missingMrnsList.className = "alert-list";
+                setAlertListClass(missingMrnsList, false);
                 missingMrnsList.innerHTML = missingList.map(inv => `
                     <div class="alert-item alert-item-danger">
                         <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is missing MRN.</span>
@@ -684,7 +690,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                missingMrnsList.className = "alert-list empty-state";
+                setAlertListClass(missingMrnsList, true);
                 missingMrnsList.innerHTML = `<p>No records with pending MRN status.</p>`;
             }
             
@@ -702,7 +708,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (ewayCount) ewayCount.innerText = pendingEwayList.length;
 
             if (pendingEwayList.length > 0) {
-                ewayBillsList.className = "alert-list";
+                setAlertListClass(ewayBillsList, false);
                 ewayBillsList.innerHTML = pendingEwayList.map(inv => `
                     <div class="alert-item alert-item-warning" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px;">
                         <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is ≥ ₹50,000 but missing E-Way Bill No.</span>
@@ -760,7 +766,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                ewayBillsList.className = "alert-list empty-state";
+                setAlertListClass(ewayBillsList, true);
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
         } else {
@@ -778,7 +784,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (missingCount) missingCount.innerText = pendingPoList.length;
 
             if (pendingPoList.length > 0) {
-                missingMrnsList.className = "alert-list";
+                setAlertListClass(missingMrnsList, false);
                 missingMrnsList.innerHTML = pendingPoList.map(inv => `
                     <div class="alert-item alert-item-danger">
                         <span>Challan <strong>${inv.doc_no}</strong> (PO: ${inv.po_wo_no || 'N/A'}) has Open PO status.</span>
@@ -793,7 +799,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                missingMrnsList.className = "alert-list empty-state";
+                setAlertListClass(missingMrnsList, true);
                 missingMrnsList.innerHTML = `<p>No delivery challans with pending PO status.</p>`;
             }
         }
