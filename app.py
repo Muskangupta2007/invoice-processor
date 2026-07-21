@@ -10,6 +10,8 @@ import db
 import extractor
 import teams
 
+import gzip
+
 app = Flask(__name__, static_folder='static', static_url_path='')
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
@@ -56,11 +58,33 @@ def index():
     return send_from_directory('static', 'index.html')
 
 @app.after_request
-def add_header(r):
-    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    r.headers["Pragma"] = "no-cache"
-    r.headers["Expires"] = "0"
-    return r
+def add_header(response):
+    path = request.path.lower()
+    # 1. Cache static media assets (images/fonts) for 24 hours, but revalidate JS/CSS
+    if any(path.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2']):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    else:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+
+    # 2. Gzip compression for API JSON and static responses
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    if (
+        'gzip' in accept_encoding.lower()
+        and response.status_code == 200
+        and not response.direct_passthrough
+    ):
+        content_type = response.content_type or ''
+        if any(ct in content_type for ct in ['json', 'html', 'css', 'javascript', 'text']):
+            data = response.get_data()
+            if len(data) > 500:
+                compressed_data = gzip.compress(data)
+                response.set_data(compressed_data)
+                response.headers['Content-Encoding'] = 'gzip'
+                response.headers['Content-Length'] = len(compressed_data)
+                response.headers['Vary'] = 'Accept-Encoding'
+
+    return response
 
 # --- AUTH ENDPOINTS ---
 
@@ -382,6 +406,8 @@ def confirm_upload():
 @requires_auth
 def update_document(company, doc_type, doc_no):
     data = request.json or {}
+    if 'mrn_status' in data and data['mrn_status']:
+        data['mrn_status'] = str(data['mrn_status']).strip().upper()
     try:
         existing = db.get_document_by_no(company, doc_type, doc_no)
         if not existing:
@@ -449,8 +475,9 @@ def get_reports():
         pending_eway = sum(
             1 for doc in documents 
             if doc.get('doc_type') == 'Invoice' 
-            and (doc.get('amount') or 0.0) >= 50000 
+            and str(doc.get('eway_bill', '')).upper() not in ['DONE', 'N/A']
             and not str(doc.get('eway_bill_no') or '').strip()
+            and (doc.get('amount') or 0.0) >= 50000 
         )
         
         done_mrn = total_count - pending_mrn

@@ -2,9 +2,12 @@ import os
 import json
 import hashlib
 import requests
+import time
 import db
 import teams
 from datetime import datetime
+
+last_push_timestamps = {}
 
 def compute_data_hash(invoices, challans):
     """
@@ -71,6 +74,8 @@ def sync_to_google_sheet(company):
     Sends the database ledger records for a company to their Google Sheet.
     """
     comp_key = company.lower().replace(' ', '_')
+    last_push_timestamps[comp_key] = time.time()
+    
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
     if not sync_url:
         return False
@@ -78,6 +83,10 @@ def sync_to_google_sheet(company):
     all_docs = db.get_documents(company=company)
     invoices = [d for d in all_docs if d['doc_type'] == 'Invoice']
     challans = [d for d in all_docs if d['doc_type'] == 'Challan']
+    
+    # Save hash immediately to prevent race conditions during background POST
+    data_hash = compute_data_hash(invoices, challans)
+    db.save_setting(f"gsheet_hash_{comp_key}", data_hash)
     
     # 1. Format Invoices
     formatted_invoices = []
@@ -178,8 +187,7 @@ def sync_to_google_sheet(company):
     pending_idx = 1
     for inv in invoices:
         status = str(inv.get('mrn_status', '')).upper()
-        mrn_no = inv.get('mrn_no')
-        if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
+        if status != 'DONE':
             formatted_pending.append({
                 'S.No': pending_idx,
                 'Invoice No': inv.get('doc_no', ''),
@@ -240,6 +248,13 @@ def sync_from_google_sheet(company):
     Fetches the ledger sheets from Google Sheets, checks for updates, and syncs them back to the local database.
     """
     comp_key = company.lower().replace(' ', '_')
+    
+    # Prevent pulling stale data from Google Sheets if a local update push occurred recently
+    last_push = last_push_timestamps.get(comp_key, 0)
+    if time.time() - last_push < 60.0:
+        print(f"[Google Sheets] Skipping pull sync for {company}: push sync occurred recently ({int(time.time() - last_push)}s ago).")
+        return True
+
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
     if not sync_url:
         return False
@@ -398,9 +413,37 @@ def sync_from_google_sheet(company):
         conn = db.get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT doc_no, mrn_status, mrn_no FROM documents WHERE company = ?", (company,))
-        existing_status_map = {row['doc_no']: (row['mrn_status'], row['mrn_no']) for row in cursor.fetchall()}
-        
+        cursor.execute("SELECT doc_no, mrn_status, mrn_no, mrn_date FROM documents WHERE company = ?", (company,))
+        existing_status_map = {
+            row['doc_no']: {
+                'mrn_status': str(row['mrn_status'] or '').strip().upper(),
+                'mrn_no': row['mrn_no'],
+                'mrn_date': row['mrn_date']
+            }
+            for row in cursor.fetchall()
+        }
+
+        # Preserve local DONE status if Google Sheet pull has stale PENDING status
+        for inv in parsed_invoices:
+            doc_no = inv.get('doc_no')
+            if doc_no in existing_status_map:
+                prev = existing_status_map[doc_no]
+                incoming_status = str(inv.get('mrn_status') or '').strip().upper()
+                if prev['mrn_status'] == 'DONE' and incoming_status != 'DONE':
+                    inv['mrn_status'] = 'DONE'
+                    if not inv.get('mrn_no') and prev['mrn_no']:
+                        inv['mrn_no'] = prev['mrn_no']
+                    if not inv.get('mrn_date') and prev['mrn_date']:
+                        inv['mrn_date'] = prev['mrn_date']
+
+        for chal in parsed_challans:
+            doc_no = chal.get('doc_no')
+            if doc_no in existing_status_map:
+                prev = existing_status_map[doc_no]
+                incoming_status = str(chal.get('mrn_status') or '').strip().upper()
+                if prev['mrn_status'] == 'DONE' and incoming_status != 'DONE':
+                    chal['mrn_status'] = 'DONE'
+
         # 5. Overwrite company documents inside database transaction
         try:
             cursor.execute("DELETE FROM documents WHERE company = ?", (company,))

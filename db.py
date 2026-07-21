@@ -109,7 +109,12 @@ def get_db_connection():
         conn = psycopg2.connect(db_url)
         return PostgresConnectionWrapper(conn)
     else:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=30.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=30000;")
+        except Exception:
+            pass
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -205,6 +210,13 @@ def init_db():
             UNIQUE(company, doc_type, doc_no)
         )
     """)
+    
+    # Create high-performance query indexes
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_company_type ON documents (company, doc_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_mrn_status ON documents (mrn_status)")
+    except Exception as idx_err:
+        print(f"[DB Init] Warning creating indexes: {idx_err}")
     
     # Run dynamic schema migration to add eway_bill_no column
     try:
@@ -778,7 +790,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 cell.alignment = Alignment(horizontal='center', vertical='center')
             
             # Filter and sort pending invoices ascending by ID
-            pending_invoices = [d for d in invoices if str(d.get('mrn_status', '')).upper() != 'DONE' or not d.get('mrn_no') or str(d.get('mrn_no')).strip() == '']
+            pending_invoices = [d for d in invoices if str(d.get('mrn_status', '')).upper() != 'DONE']
             sorted_pending = sorted(pending_invoices, key=lambda x: x['id'])
             
             row_idx_counter = 1
@@ -1089,8 +1101,7 @@ def check_missing_mrn(company=None, doc_type=None):
     missing_mrn_list = []
     for doc in documents:
         status = str(doc.get('mrn_status', '')).upper()
-        mrn_no = doc.get('mrn_no')
-        if status != 'DONE' or not mrn_no or str(mrn_no).strip() == '':
+        if status != 'DONE':
             missing_mrn_list.append(doc)
     return missing_mrn_list
 
@@ -1169,7 +1180,13 @@ def sync_excel_to_db(company):
                     placeholders = ", ".join(["?"] * len(row_dict))
                     columns = ", ".join(row_dict.keys())
                     values = tuple(row_dict.values())
-                    cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+                    cursor.execute(
+                        f"INSERT INTO documents ({columns}) VALUES ({placeholders}) "
+                        f"ON CONFLICT(company, doc_type, doc_no) DO UPDATE SET "
+                        f"mrn_status=excluded.mrn_status, mrn_no=excluded.mrn_no, mrn_date=excluded.mrn_date, "
+                        f"remarks=excluded.remarks, eway_bill=excluded.eway_bill, eway_bill_no=excluded.eway_bill_no",
+                        values
+                    )
         
         # Read Delivery Challans Sheet (Group itemized rows back to single records)
         if 'Delivery Challans' in xls.sheet_names:
@@ -1250,7 +1267,13 @@ def sync_excel_to_db(company):
                     placeholders = ", ".join(["?"] * len(gd))
                     columns = ", ".join(gd.keys())
                     values = tuple(gd.values())
-                    cursor.execute(f"INSERT OR IGNORE INTO documents ({columns}) VALUES ({placeholders})", values)
+                    cursor.execute(
+                        f"INSERT INTO documents ({columns}) VALUES ({placeholders}) "
+                        f"ON CONFLICT(company, doc_type, doc_no) DO UPDATE SET "
+                        f"mrn_status=excluded.mrn_status, mrn_no=excluded.mrn_no, mrn_date=excluded.mrn_date, "
+                        f"remarks=excluded.remarks, po_status=excluded.po_status",
+                        values
+                    )
                     
         conn.commit()
         conn.close()

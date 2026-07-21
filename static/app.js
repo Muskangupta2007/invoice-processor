@@ -555,33 +555,44 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
+        console.log("[DEBUG] fetchData called | company:", state.activeCompany, "| docType:", state.activeDocType);
+
+        const invoicesPromise = fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
         .then(res => res.json())
         .then(data => {
+            console.log("[DEBUG] /api/invoices response:", data.status, "| count:", data.invoices ? data.invoices.length : 'N/A');
             if (data.status === "success") {
-                state.invoices = data.invoices;
+                state.invoices = data.invoices || [];
                 updateDashboardStats(data);
+                renderAlertLists(); // Render alerts immediately without waiting for reports API
+            } else {
+                console.error("[DEBUG] /api/invoices returned non-success:", data);
             }
         })
         .catch(err => {
-            console.error("Error fetching statistics:", err);
+            console.error("[DEBUG] Error fetching invoices:", err);
             showToast("Failed to fetch dashboard metrics.", "danger");
         });
 
-        fetch(`/api/reports?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
+        const reportsPromise = fetch(`/api/reports?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
         .then(res => res.json())
         .then(data => {
+            console.log("[DEBUG] /api/reports response:", JSON.stringify(data));
             state.reports = data;
+        })
+        .catch(err => console.error("[DEBUG] Error fetching reports:", err));
+
+        Promise.all([invoicesPromise, reportsPromise]).then(() => {
+            console.log("[DEBUG] Promise.all resolved | state.invoices.length:", state.invoices.length, "| state.reports:", JSON.stringify(state.reports));
             updateReportsStats();
             drawChart();
-        })
-        .catch(err => console.error("Error fetching analytical reports:", err));
+        });
 
         fetch("/api/settings/status", {
             headers: getAuthHeaders(false)
@@ -615,18 +626,18 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function updateReportsStats() {
-        if (!state.reports) return;
-        statTotalAmount.innerText = formatCurrency(state.reports.total_amt);
-        
+    function renderAlertLists() {
+        if (!state.invoices) return;
+
         if (state.activeDocType === 'Invoice') {
-            statPendingMrns.innerText = state.reports.pending_mrn;
-            statPendingEway.innerText = state.reports.pending_eway;
-            
             ewayDivider.style.display = "block";
             ewayAlertSection.style.display = "block";
             
-            const missingList = state.invoices.filter(inv => !inv.mrn_no || inv.mrn_status !== "DONE");
+            const missingList = state.invoices.filter(inv =>
+                String(inv.mrn_status || '').toUpperCase() !== 'DONE'
+            );
+            statPendingMrns.innerText = missingList.length;
+
             if (missingList.length > 0) {
                 missingMrnsList.className = "alert-list";
                 missingMrnsList.innerHTML = missingList.map(inv => `
@@ -647,13 +658,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 missingMrnsList.innerHTML = `<p>No records with pending MRN status.</p>`;
             }
             
-            // Render pending E-Way Bills
             const pendingEwayList = state.invoices.filter(inv => {
+                const isInvoice = String(inv.doc_type || '').toLowerCase() === 'invoice';
+                const ewayStatus = String(inv.eway_bill || '').toUpperCase();
+                const ewayNo = String(inv.eway_bill_no || '').trim();
                 const amt = parseFloat(inv.amount || 0);
-                const isInvoice = inv.doc_type === 'Invoice';
-                const isEwayBlank = !String(inv.eway_bill_no || '').trim();
-                return isInvoice && amt >= 50000 && isEwayBlank;
+                if (!isInvoice) return false;
+                if (ewayStatus === 'DONE' || ewayStatus === 'N/A') return false;
+                if (ewayNo) return false;
+                return ewayStatus === 'PENDING' || amt >= 50000;
             });
+            statPendingEway.innerText = pendingEwayList.length;
+
             if (pendingEwayList.length > 0) {
                 ewayBillsList.className = "alert-list";
                 ewayBillsList.innerHTML = pendingEwayList.map(inv => `
@@ -678,6 +694,14 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                         
                         showToast(`Saving E-Way Bill for invoice ${docNo}...`);
+
+                        // Optimistic local update
+                        const targetInv = state.invoices.find(inv => inv.doc_no === docNo);
+                        if (targetInv) {
+                            targetInv.eway_bill_no = ewayVal;
+                            targetInv.eway_bill = 'DONE';
+                        }
+                        renderAlertLists();
                         
                         const comp = state.activeCompany;
                         const docType = 'Invoice';
@@ -692,15 +716,16 @@ document.addEventListener("DOMContentLoaded", () => {
                         .then(data => {
                             if (data.status === "success") {
                                 showToast(`E-Way Bill for ${docNo} updated successfully!`);
-                                // Refresh data
                                 fetchData();
                             } else {
                                 showToast(data.message, "danger");
+                                fetchData();
                             }
                         })
                         .catch(err => {
                             console.error("Error saving inline E-Way Bill:", err);
                             showToast("Failed to save inline E-Way Bill.", "danger");
+                            fetchData();
                         });
                     });
                 });
@@ -709,8 +734,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
         } else {
-            statPendingMrns.innerText = state.reports.pending_po;
-            
             ewayDivider.style.display = "none";
             ewayAlertSection.style.display = "none";
             
@@ -732,9 +755,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
             } else {
                 missingMrnsList.className = "alert-list empty-state";
-                missingMrnsList.innerHTML = `<p>No records with pending PO status.</p>`;
+                missingMrnsList.innerHTML = `<p>No delivery challans with pending PO status.</p>`;
             }
         }
+    }
+
+    function updateReportsStats() {
+        if (!state.reports) return;
+        statTotalAmount.innerText = formatCurrency(state.reports.total_amt);
+        
+        if (state.activeDocType === 'Invoice') {
+            statPendingMrns.innerText = state.reports.pending_mrn;
+            statPendingEway.innerText = state.reports.pending_eway;
+        } else {
+            statPendingMrns.innerText = state.reports.pending_po;
+        }
+        renderAlertLists();
     }
 
     function drawChart() {
@@ -1059,7 +1095,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
         
-        ledgerBody.innerHTML = finalHtml;
+        const fragment = document.createRange().createContextualFragment(finalHtml);
+        ledgerBody.replaceChildren(fragment);
 
         document.querySelectorAll(".open-edit-btn").forEach(el => {
             el.addEventListener("click", () => {
@@ -1375,6 +1412,11 @@ document.addEventListener("DOMContentLoaded", () => {
         editMrnDate.value = doc.mrn_date || "";
         editMrnNo.value = doc.mrn_no || "";
         editRemarks.value = doc.remarks || "";
+
+        // BUG FIX: Store the actual company and doc_type from the document so the submit
+        // handler always uses the exact document company regardless of the dashboard dropdown.
+        editInvoiceNo.setAttribute("data-company", doc.company || state.activeCompany);
+        editInvoiceNo.setAttribute("data-doc-type", doc.doc_type || "Invoice");
         
         if (doc.doc_type === "Challan") {
             editMrnSection.style.display = "none";
@@ -1410,8 +1452,8 @@ document.addEventListener("DOMContentLoaded", () => {
     editForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const docNo = editInvoiceNo.value;
-        const comp = state.activeCompany;
-        const docType = ledgerModuleFilter.value;
+        const comp = editInvoiceNo.getAttribute("data-company") || state.activeCompany;
+        const docType = editInvoiceNo.getAttribute("data-doc-type") || ledgerModuleFilter.value;
         
         const updatedData = {
             remarks: editRemarks.value
@@ -1423,6 +1465,20 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.mrn_no = editMrnNo.value;
             updatedData.item_description = editInvoiceItemDescription.value;
             updatedData.eway_bill = document.getElementById("edit-eway-bill").value;
+
+            // Optimistic local update
+            const targetInv = state.invoices.find(inv => String(inv.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
+            if (targetInv) {
+                targetInv.mrn_status = editMrnStatus.value;
+                targetInv.mrn_date = editMrnDate.value;
+                targetInv.mrn_no = editMrnNo.value;
+                targetInv.remarks = editRemarks.value;
+                if (updatedData.eway_bill) {
+                    targetInv.eway_bill_no = updatedData.eway_bill;
+                    targetInv.eway_bill = 'DONE';
+                }
+            }
+            renderAlertLists();
         }
 
         if (docType === "Challan") {
@@ -1433,6 +1489,13 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.po_qty = editPoQty.value;
             updatedData.po_status = editPoStatus.value;
             updatedData.invoice_no = editInvoiceNoVal.value;
+
+            // Optimistic local update
+            const targetInv = state.invoices.find(inv => String(inv.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
+            if (targetInv) {
+                targetInv.po_status = editPoStatus.value;
+            }
+            renderAlertLists();
         }
 
         fetch(`/api/invoices/${encodeURIComponent(comp)}/${encodeURIComponent(docType)}/${encodeURIComponent(docNo)}`, {
