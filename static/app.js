@@ -737,7 +737,16 @@ document.addEventListener("DOMContentLoaded", () => {
             ewayDivider.style.display = "none";
             ewayAlertSection.style.display = "none";
             
-            const pendingPoList = state.invoices.filter(inv => String(inv.po_status).toUpperCase() === "OPEN" || !inv.po_status);
+            const pendingPoList = state.invoices.filter(inv => {
+                const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
+                const poStatus = String(inv.po_status || '').toUpperCase();
+                if (!isChallan) return false;
+                if (!poStatus) return true;
+                const statuses = poStatus.split('\n').map(s => s.trim());
+                return statuses.some(s => s !== 'CLOSED' && s !== 'CLOSE');
+            });
+            statPendingMrns.innerText = pendingPoList.length;
+
             if (pendingPoList.length > 0) {
                 missingMrnsList.className = "alert-list";
                 missingMrnsList.innerHTML = pendingPoList.map(inv => `

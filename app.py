@@ -262,6 +262,20 @@ def get_documents():
     
     try:
         documents = db.get_documents(company, doc_type)
+        for doc in documents:
+            amt = doc.get('amount') or 0.0
+            if (not amt or amt == 0.0) and doc.get('doc_type') == 'Challan':
+                qtys = str(doc.get('deliver_qty') or '').split('\n')
+                prices = str(doc.get('unit_price') or '').split('\n')
+                chal_amt = 0.0
+                for q_str, p_str in zip(qtys, prices):
+                    try:
+                        q = float(q_str.replace(',', '').strip())
+                        p = float(p_str.replace(',', '').strip())
+                        chal_amt += q * p
+                    except (ValueError, TypeError):
+                        pass
+                doc['amount'] = chal_amt
         
         sequence_check = {"status": "ok", "missing_numbers": []}
         if company and doc_type:
@@ -467,10 +481,30 @@ def get_reports():
                 "by_date": []
             })
             
+        def calculate_doc_volume(doc):
+            amt = doc.get('amount') or 0.0
+            if (not amt or amt == 0.0) and doc.get('doc_type') == 'Challan':
+                qtys = str(doc.get('deliver_qty') or '').split('\n')
+                prices = str(doc.get('unit_price') or '').split('\n')
+                chal_amt = 0.0
+                for q_str, p_str in zip(qtys, prices):
+                    try:
+                        q = float(q_str.replace(',', '').strip())
+                        p = float(p_str.replace(',', '').strip())
+                        chal_amt += q * p
+                    except (ValueError, TypeError):
+                        pass
+                return chal_amt
+            return float(amt or 0.0)
+
         total_count = len(documents)
-        total_amt = sum(doc.get('amount') or 0.0 for doc in documents)
+        total_amt = sum(calculate_doc_volume(doc) for doc in documents)
         
-        pending_po = sum(1 for doc in documents if doc.get('doc_type') == 'Challan' and str(doc.get('po_status', '')).upper() != 'CLOSED')
+        pending_po = sum(
+            1 for doc in documents 
+            if doc.get('doc_type') == 'Challan' 
+            and (not doc.get('po_status') or any(s.strip().upper() != 'CLOSED' for s in str(doc.get('po_status')).split('\n')))
+        )
         pending_mrn = sum(1 for doc in documents if str(doc.get('mrn_status', '')).upper() != 'DONE')
         pending_eway = sum(
             1 for doc in documents 
