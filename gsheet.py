@@ -90,7 +90,7 @@ def sync_to_google_sheet(company):
     
     # 1. Format Invoices
     formatted_invoices = []
-    for idx, doc in enumerate(sorted(invoices, key=lambda x: x['id']), 1):
+    for idx, doc in enumerate(sorted(invoices, key=db.doc_number_sort_key), 1):
         formatted_invoices.append({
             'S.No': idx,
             'Invoice No': doc.get('doc_no', ''),
@@ -116,7 +116,7 @@ def sync_to_google_sheet(company):
     # 2. Format Delivery Challans (expanded to individual item rows)
     formatted_challans = []
     row_idx_counter = 1
-    for doc in sorted(challans, key=lambda x: x['id']):
+    for doc in sorted(challans, key=db.doc_number_sort_key):
         items = str(doc.get('item_description') or '').split('\n')
         qtys = str(doc.get('deliver_qty') or '').split('\n')
         uoms = str(doc.get('uom') or '').split('\n')
@@ -185,7 +185,7 @@ def sync_to_google_sheet(company):
     # 3. Format Pending MRNs (Invoices pending MRNs, matching Invoices format)
     formatted_pending = []
     pending_idx = 1
-    for inv in invoices:
+    for inv in sorted(invoices, key=db.doc_number_sort_key):
         status = str(inv.get('mrn_status', '')).upper()
         if status != 'DONE':
             formatted_pending.append({

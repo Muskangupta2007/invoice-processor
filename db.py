@@ -533,6 +533,20 @@ def calculate_difference(del_qty_str, po_qty_str):
         
     return "\n".join(diff_parts)
 
+def doc_number_sort_key(doc):
+    doc_no = str(doc.get('doc_no') or '').strip()
+    match = re.search(r'^(.*?)(?:/|-|_|\b)(\d+)$', doc_no)
+    if match:
+        prefix = match.group(1)
+        num = int(match.group(2))
+        return (prefix.lower(), num, doc_no.lower())
+    numbers = re.findall(r'\d+', doc_no)
+    if numbers:
+        last_num = int(numbers[-1])
+        prefix = doc_no[:doc_no.rfind(numbers[-1])]
+        return (prefix.lower(), last_num, doc_no.lower())
+    return (doc_no.lower(), 0, doc_no.lower())
+
 def sync_to_excel(company=None, sync_main=True, sync_pending=True):
     """
     Syncs SQLite records. Overwrites the {Company}.xlsx file
@@ -598,8 +612,8 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 ws.delete_rows(1, ws.max_row + 1)
                 ws.append(cols)
                 
-                # Sort SQLite docs ascending by ID (to maintain order)
-                sorted_docs = sorted(docs, key=lambda x: x['id'])
+                # Sort SQLite docs ascending by document number (extracting trailing numeric digits)
+                sorted_docs = sorted(docs, key=doc_number_sort_key)
                 
                 row_idx_counter = 1
                 for doc in sorted_docs:

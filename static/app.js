@@ -635,7 +635,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const missingList = state.invoices.filter(inv =>
                 String(inv.mrn_status || '').toUpperCase() !== 'DONE'
-            );
+            ).sort(docNumberSortKey);
             statPendingMrns.innerText = missingList.length;
 
             if (missingList.length > 0) {
@@ -950,6 +950,34 @@ document.addEventListener("DOMContentLoaded", () => {
         return diffs.join('\n');
     }
 
+    function docNumberSortKey(a, b) {
+        const getSortParts = (doc) => {
+            const docNo = String(doc.doc_no || '').trim();
+            const match = docNo.match(/^(.*?)(?:\/|-|_|\b)(\d+)$/);
+            if (match) {
+                return { prefix: match[1].toLowerCase(), num: parseInt(match[2], 10), docNo: docNo.toLowerCase() };
+            }
+            const nums = docNo.match(/\d+/g);
+            if (nums) {
+                const lastNum = parseInt(nums[nums.length - 1], 10);
+                const prefix = docNo.substring(0, docNo.lastIndexOf(nums[nums.length - 1]));
+                return { prefix: prefix.toLowerCase(), num: lastNum, docNo: docNo.toLowerCase() };
+            }
+            return { prefix: docNo.toLowerCase(), num: 0, docNo: docNo.toLowerCase() };
+        };
+
+        const pa = getSortParts(a);
+        const pb = getSortParts(b);
+
+        if (pa.prefix !== pb.prefix) {
+            return pa.prefix.localeCompare(pb.prefix);
+        }
+        if (pa.num !== pb.num) {
+            return pa.num - pb.num;
+        }
+        return pa.docNo.localeCompare(pb.docNo);
+    }
+
     function renderLedgerTable(invoices, docType) {
         const searchTerm = ledgerSearch.value.toLowerCase().trim();
         const mrnFilter = ledgerMrnFilter.value;
@@ -988,7 +1016,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const sorted = [...filtered].sort((a, b) => a.id - b.id);
+        const sorted = [...filtered].sort(docNumberSortKey);
 
         let finalHtml = "";
         
