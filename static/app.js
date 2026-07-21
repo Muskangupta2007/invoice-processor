@@ -794,6 +794,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function drawChart() {
+        const canvas = document.getElementById("vendorChart");
+        if (!canvas) return;
+
         if (state.vendorChart) {
             state.vendorChart.destroy();
         }
