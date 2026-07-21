@@ -557,6 +557,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
         console.log("[DEBUG] fetchData called | company:", state.activeCompany, "| docType:", state.activeDocType);
 
+        // Immediately clear state so previous company/module data doesn't linger
+        state.invoices = [];
+        state.reports = null;
+
+        // Immediately sync UI section visibility & labels to match activeDocType
+        const cardPendingEway = document.getElementById("card-pending-eway");
+        const ewayDivider = document.getElementById("eway-divider");
+        const ewayAlertSection = document.getElementById("eway-alert-section");
+        const missingLabel = document.getElementById("missing-action-label");
+        const statPendingTitle = document.querySelector("#card-pending-mrns h3");
+
+        if (state.activeDocType === 'Invoice') {
+            if (cardPendingEway) cardPendingEway.style.display = "flex";
+            if (ewayDivider) ewayDivider.style.display = "block";
+            if (ewayAlertSection) ewayAlertSection.style.display = "block";
+            if (missingLabel) missingLabel.innerText = "Pending MRN List";
+            if (statPendingTitle) statPendingTitle.innerText = "PENDING MRNS";
+        } else {
+            if (cardPendingEway) cardPendingEway.style.display = "none";
+            if (ewayDivider) ewayDivider.style.display = "none";
+            if (ewayAlertSection) ewayAlertSection.style.display = "none";
+            if (missingLabel) missingLabel.innerText = "Pending PO List";
+            if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
+        }
+
         const invoicesPromise = fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
             headers: getAuthHeaders(false)
         })

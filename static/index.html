@@ -16,7 +16,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=3.1.0">
+    <link rel="stylesheet" href="style.css?v=3.2.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -260,13 +260,11 @@
                                 <div class="panel-body">
                                     <!-- Sequence Gaps Sub-Section -->
                                     <div class="alert-section">
-                                        <h3 class="alert-title-main warning accordion-header collapsed" id="sequence-audit-title" data-target="sequence-gaps-list" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
-                                            <div class="header-left" style="display: flex; align-items: center; gap: 10px;">
-                                                <i class="fa-solid fa-circle-exclamation"></i>
-                                                <span id="sequence-audit-label">Sequence Audits</span>
-                                                <span class="count-badge badge-warning" id="sequence-audit-count">0</span>
-                                            </div>
-                                            <i class="fa-solid fa-chevron-down accordion-chevron"></i>
+                                        <h3 class="alert-title-main warning accordion-header collapsed" id="sequence-audit-title" data-target="sequence-gaps-list" style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
+                                            <i class="fa-solid fa-circle-exclamation"></i>
+                                            <span id="sequence-audit-label">Sequence Audits</span>
+                                            <span class="count-badge badge-warning" id="sequence-audit-count">0</span>
+                                            <i class="fa-solid fa-chevron-down accordion-chevron" style="margin-left: auto;"></i>
                                         </h3>
                                         <div id="sequence-gaps-list" class="alert-list empty-state collapsed">
                                             <p>No sequence gaps detected!</p>
@@ -277,13 +275,11 @@
                                     
                                     <!-- Missing MRNs Sub-Section -->
                                     <div class="alert-section">
-                                        <h3 class="alert-title-main danger accordion-header collapsed" id="missing-action-title" data-target="missing-mrns-list" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
-                                            <div class="header-left" style="display: flex; align-items: center; gap: 10px;">
-                                                <i class="fa-solid fa-circle-xmark"></i>
-                                                <span id="missing-action-label">Pending MRN List</span>
-                                                <span class="count-badge badge-danger" id="missing-mrn-count">0</span>
-                                            </div>
-                                            <i class="fa-solid fa-chevron-down accordion-chevron"></i>
+                                        <h3 class="alert-title-main danger accordion-header collapsed" id="missing-action-title" data-target="missing-mrns-list" style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
+                                            <i class="fa-solid fa-circle-xmark"></i>
+                                            <span id="missing-action-label">Pending MRN List</span>
+                                            <span class="count-badge badge-danger" id="missing-mrn-count">0</span>
+                                            <i class="fa-solid fa-chevron-down accordion-chevron" style="margin-left: auto;"></i>
                                         </h3>
                                         <div id="missing-mrns-list" class="alert-list empty-state collapsed">
                                             <p>No documents with pending MRN status.</p>
@@ -294,13 +290,11 @@
 
                                     <!-- Pending E-way Bills Sub-Section -->
                                     <div class="alert-section" id="eway-alert-section" style="display: none;">
-                                        <h3 class="alert-title-main warning accordion-header collapsed" id="eway-action-title" data-target="eway-bills-list" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
-                                            <div class="header-left" style="display: flex; align-items: center; gap: 10px;">
-                                                <i class="fa-solid fa-truck-ramp-box"></i>
-                                                <span id="eway-action-label">Pending E-Way Bill List</span>
-                                                <span class="count-badge badge-warning" id="eway-bill-count">0</span>
-                                            </div>
-                                            <i class="fa-solid fa-chevron-down accordion-chevron"></i>
+                                        <h3 class="alert-title-main warning accordion-header collapsed" id="eway-action-title" data-target="eway-bills-list" style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
+                                            <i class="fa-solid fa-truck-ramp-box"></i>
+                                            <span id="eway-action-label">Pending E-Way Bill List</span>
+                                            <span class="count-badge badge-warning" id="eway-bill-count">0</span>
+                                            <i class="fa-solid fa-chevron-down accordion-chevron" style="margin-left: auto;"></i>
                                         </h3>
                                         <div id="eway-bills-list" class="alert-list empty-state collapsed">
                                             <p>No invoices with pending E-way bill status.</p>
@@ -809,6 +803,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=3.1.0"></script>
+    <script src="app.js?v=3.2.0"></script>
 </body>
 </html>
