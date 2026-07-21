@@ -369,17 +369,18 @@ document.addEventListener("DOMContentLoaded", () => {
         pageTitle.innerText = `${state.activeCompany} Workspace`;
         pageSubtitle.innerText = `Ingestion workspace details for ${state.activeCompany}.`;
         
-        statTotalTitle.innerText = state.activeDocType === 'Invoice' ? "Total Invoices" : "Total Challans";
-        statPendingTitle.innerText = state.activeDocType === 'Invoice' ? "Pending MRNs" : "Pending POs";
+        statTotalTitle.innerText = state.activeDocType === 'Invoice' ? "TOTAL INVOICES" : "TOTAL CHALLANS";
+        statPendingTitle.innerText = state.activeDocType === 'Invoice' ? "PENDING MRNS" : "PENDING POS";
         
+        const missingActionLabel = document.getElementById("missing-action-label");
+        if (missingActionLabel) {
+            missingActionLabel.innerText = state.activeDocType === 'Invoice' ? "Pending MRN List" : "Pending PO List";
+        }
+
         if (state.activeDocType === 'Invoice') {
             cardPendingEway.style.display = "flex";
-            sequenceAuditTitle.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> Sequence Audits`;
-            missingActionTitle.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Pending MRN List`;
         } else {
             cardPendingEway.style.display = "none";
-            sequenceAuditTitle.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> Sequence Audits`;
-            missingActionTitle.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Pending PO List`;
         }
     }
 
