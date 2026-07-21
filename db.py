@@ -1099,8 +1099,9 @@ def sync_from_excel():
             
     conn.close()
 
-def check_invoice_sequence(company, doc_type):
-    documents = get_documents(company=company, doc_type=doc_type)
+def check_invoice_sequence(company, doc_type, documents=None):
+    if documents is None:
+        documents = get_documents(company=company, doc_type=doc_type)
     if len(documents) < 2:
         return {"status": "ok", "missing_numbers": [], "pattern": ""}
     
@@ -1139,8 +1140,9 @@ def check_invoice_sequence(company, doc_type):
         "pattern": f"{prefix}{{num}}{suffix}"
     }
 
-def check_missing_mrn(company=None, doc_type=None):
-    documents = get_documents(company=company, doc_type=doc_type)
+def check_missing_mrn(company=None, doc_type=None, documents=None):
+    if documents is None:
+        documents = get_documents(company=company, doc_type=doc_type)
     missing_mrn_list = []
     for doc in documents:
         status = str(doc.get('mrn_status', '')).upper()

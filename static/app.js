@@ -588,7 +588,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
         }
 
-        const invoicesPromise = fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
+        fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
@@ -597,8 +597,11 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log("[DEBUG] /api/invoices response:", data.status, "| count:", data.invoices ? data.invoices.length : 'N/A');
             if (data.status === "success") {
                 state.invoices = data.invoices || [];
+                state.reports = data.reports || null;
                 updateDashboardStats(data);
-                renderAlertLists(); // Render alerts immediately without waiting for reports API
+                renderAlertLists();
+                updateReportsStats();
+                drawChart();
             } else {
                 console.error("[DEBUG] /api/invoices returned non-success:", data);
             }
@@ -611,23 +614,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     fetchData();
                 }
             }, 3000);
-        });
-
-        const reportsPromise = fetch(`/api/reports?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
-            headers: getAuthHeaders(false)
-        })
-        .then(checkAuthResponse)
-        .then(res => res.json())
-        .then(data => {
-            console.log("[DEBUG] /api/reports response:", JSON.stringify(data));
-            state.reports = data;
-        })
-        .catch(err => console.error("[DEBUG] Error fetching reports:", err));
-
-        Promise.all([invoicesPromise, reportsPromise]).then(() => {
-            console.log("[DEBUG] Promise.all resolved | state.invoices.length:", state.invoices.length, "| state.reports:", JSON.stringify(state.reports));
-            updateReportsStats();
-            drawChart();
         });
 
         fetch("/api/settings/status", {
@@ -984,17 +970,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        ledgerBody.innerHTML = `
-            <tr class="table-placeholder">
-                <td colspan="19">
-                    <div class="table-loading">
-                        <i class="fa-solid fa-spinner fa-spin"></i>
-                        <p>Loading ledger entries...</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-
         const comp = state.activeCompany;
         const docType = ledgerModuleFilter.value;
 
@@ -1041,6 +1016,36 @@ document.addEventListener("DOMContentLoaded", () => {
                     <th>MRN No</th>
                     <th>Remarks</th>
                     <th class="col-actions">Actions</th>
+                </tr>
+            `;
+        }
+
+        // Fast Path: If data is already in state for active company, render instantly
+        if (state.invoices && state.invoices.length > 0) {
+            const firstDoc = state.invoices[0];
+            if (firstDoc && String(firstDoc.company || '').toLowerCase() === String(comp).toLowerCase() && String(firstDoc.doc_type || '').toLowerCase() === String(docType).toLowerCase()) {
+                renderLedgerTable(state.invoices, docType);
+            } else {
+                ledgerBody.innerHTML = `
+                    <tr class="table-placeholder">
+                        <td colspan="19">
+                            <div class="table-loading">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <p>Loading ledger entries...</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        } else {
+            ledgerBody.innerHTML = `
+                <tr class="table-placeholder">
+                    <td colspan="19">
+                        <div class="table-loading">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            <p>Loading ledger entries...</p>
+                        </div>
+                    </td>
                 </tr>
             `;
         }

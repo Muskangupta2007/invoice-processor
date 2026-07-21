@@ -21,6 +21,22 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db.init_db()
 
+@app.after_request
+def compress_response(response):
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    if 'gzip' in accept_encoding.lower() and response.status_code == 200 and not response.headers.get('Content-Encoding'):
+        data = response.get_data()
+        if len(data) > 500:
+            gzip_buffer = io.BytesIO()
+            with gzip.GzipFile(mode='wb', fileobj=gzip_buffer) as gzfile:
+                gzfile.write(data)
+            compressed_data = gzip_buffer.getvalue()
+            response.set_data(compressed_data)
+            response.headers['Content-Encoding'] = 'gzip'
+            response.headers['Content-Length'] = len(compressed_data)
+            response.headers['Vary'] = 'Accept-Encoding'
+    return response
+
 # --- AUTHENTICATION DECORATOR ---
 def requires_auth(f):
     @wraps(f)
@@ -297,18 +313,47 @@ def get_documents():
         
         sequence_check = {"status": "ok", "missing_numbers": []}
         if company and doc_type:
-            sequence_check = db.check_invoice_sequence(company, doc_type)
-            missing_mrns = db.check_missing_mrn(company, doc_type)
+            sequence_check = db.check_invoice_sequence(company, doc_type, documents=documents)
+            missing_mrns = db.check_missing_mrn(company, doc_type, documents=documents)
             missing_count = len(missing_mrns)
         else:
-            missing_mrns = db.check_missing_mrn()
+            missing_mrns = db.check_missing_mrn(documents=documents)
             missing_count = len(missing_mrns)
+            
+        def calculate_doc_vol(doc):
+            amt = doc.get('amount') or 0.0
+            return float(amt or 0.0)
+
+        total_count = len(documents)
+        total_amt = sum(calculate_doc_vol(doc) for doc in documents)
+        pending_po = sum(
+            1 for doc in documents 
+            if str(doc.get('doc_type') or '').lower() == 'challan' 
+            and db.calculate_overall_po_status(doc) == 'Open'
+        )
+        pending_mrn = sum(1 for doc in documents if str(doc.get('mrn_status', '')).upper() != 'DONE')
+        pending_eway = sum(
+            1 for doc in documents 
+            if str(doc.get('doc_type') or '').lower() == 'invoice' 
+            and str(doc.get('eway_bill', '')).upper() not in ['DONE', 'N/A']
+            and not str(doc.get('eway_bill_no') or '').strip()
+            and (doc.get('amount') or 0.0) >= 50000 
+        )
+        done_mrn = total_count - pending_mrn
             
         return jsonify({
             "status": "success",
             "invoices": documents,
             "sequence_check": sequence_check,
-            "missing_mrn_count": missing_count
+            "missing_mrn_count": missing_count,
+            "reports": {
+                "total_count": total_count,
+                "total_amt": total_amt,
+                "pending_mrn": pending_mrn,
+                "pending_po": pending_po,
+                "pending_eway": pending_eway,
+                "done_mrn": done_mrn
+            }
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
