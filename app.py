@@ -252,6 +252,24 @@ def test_teams():
     else:
         return jsonify({"status": "error", "message": "Failed to send test notification. Check server logs."}), 500
 
+@app.route('/api/debug-docs')
+def debug_docs():
+    company = request.args.get('company', 'SK Electricals')
+    docs = db.get_documents(company)
+    return jsonify({
+        "company": company,
+        "count": len(docs),
+        "docs": [
+            {
+                "doc_no": d.get("doc_no"),
+                "doc_type": d.get("doc_type"),
+                "po_status": d.get("po_status"),
+                "overall_po_status": db.calculate_overall_po_status(d)
+            }
+            for d in docs
+        ]
+    })
+
 # --- LEDGER ENDPOINTS ---
 
 @app.route('/api/invoices', methods=['GET'])
