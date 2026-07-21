@@ -662,8 +662,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const missingLabel = document.getElementById("missing-action-label");
         const missingCount = document.getElementById("missing-mrn-count");
         const ewayCount = document.getElementById("eway-bill-count");
+        const statPendingTitle = document.querySelector("#card-pending-mrns h3");
 
         if (state.activeDocType === 'Invoice') {
+            if (statPendingTitle) statPendingTitle.innerText = "PENDING MRNS";
             if (missingLabel) missingLabel.innerText = "Pending MRN List";
             ewayDivider.style.display = "block";
             ewayAlertSection.style.display = "block";
@@ -770,6 +772,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
         } else {
+            if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
             if (missingLabel) missingLabel.innerText = "Pending PO List";
             ewayDivider.style.display = "none";
             ewayAlertSection.style.display = "none";
