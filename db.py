@@ -554,13 +554,14 @@ def calculate_overall_po_status(doc):
     statuses = [s.strip().upper() for s in po_status_str.split('\n') if s.strip()]
     if not statuses:
         return 'Open'
-    # Rule 4: If EVEN ONE item has Open, Overall PO Status MUST NOT be Close -> it is Open
+    # 1. If EVEN ONE item is Open/Pending, Overall status is Open
     if any(s in ['OPEN', 'PENDING', ''] for s in statuses):
         return 'Open'
-    # Rule 4: Close ONLY IF every item is Close or Work Order
-    if all(s in ['CLOSE', 'CLOSED', 'WORK ORDER', 'WORKORDER'] for s in statuses):
-        if all(s in ['WORK ORDER', 'WORKORDER'] for s in statuses):
-            return 'Work Order'
+    # 2. If NO item is Open, but at least one item is Work Order, Overall status is Work Order
+    if any(s in ['WORK ORDER', 'WORKORDER'] for s in statuses):
+        return 'Work Order'
+    # 3. If all items are Close/Closed, Overall status is Close
+    if all(s in ['CLOSE', 'CLOSED'] for s in statuses):
         return 'Close'
     return 'Open'
 

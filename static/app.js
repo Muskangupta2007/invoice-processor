@@ -678,9 +678,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (cleaned.some(s => s === 'OPEN' || s === 'PENDING' || s === '')) {
             return 'Open';
         }
-        
-        if (cleaned.every(s => s === 'CLOSE' || s === 'CLOSED' || s === 'WORK ORDER' || s === 'WORKORDER')) {
-            if (cleaned.every(s => s === 'WORK ORDER' || s === 'WORKORDER')) return 'Work Order';
+        if (cleaned.some(s => s === 'WORK ORDER' || s === 'WORKORDER')) {
+            return 'Work Order';
+        }
+        if (cleaned.every(s => s === 'CLOSE' || s === 'CLOSED')) {
             return 'Close';
         }
         return 'Open';
@@ -830,7 +831,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const pendingPoList = state.invoices.filter(inv => {
                 const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
                 if (!isChallan) return false;
-                return calculateOverallPoStatusFromDoc(inv) !== 'Close';
+                return calculateOverallPoStatusFromDoc(inv) === 'Open';
             }).sort(docNumberSortKey);
 
             statPendingMrns.innerText = pendingPoList.length;
@@ -859,9 +860,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const workOrderList = state.invoices.filter(inv => {
                 const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
                 if (!isChallan) return false;
-                const overall = calculateOverallPoStatusFromDoc(inv);
-                const po_status = String(inv.po_status || '').toUpperCase();
-                return overall === 'Work Order' || po_status.includes('WORK ORDER') || po_status.includes('WORKORDER');
+                return calculateOverallPoStatusFromDoc(inv) === 'Work Order';
             }).sort(docNumberSortKey);
 
             if (workorderCount) workorderCount.innerText = workOrderList.length;
