@@ -628,6 +628,28 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function calculateOverallPoStatusFromList(statuses) {
+        if (!statuses || statuses.length === 0) return 'Open';
+        const cleaned = statuses.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+        if (cleaned.length === 0) return 'Open';
+        
+        if (cleaned.some(s => s === 'OPEN' || s === 'PENDING' || s === '')) {
+            return 'Open';
+        }
+        
+        if (cleaned.every(s => s === 'CLOSE' || s === 'CLOSED' || s === 'WORK ORDER' || s === 'WORKORDER')) {
+            if (cleaned.every(s => s === 'WORK ORDER' || s === 'WORKORDER')) return 'Work Order';
+            return 'Close';
+        }
+        return 'Open';
+    }
+
+    function calculateOverallPoStatusFromDoc(doc) {
+        if (!doc) return 'Open';
+        const po_stats = (doc.po_status || "").split('\n');
+        return calculateOverallPoStatusFromList(po_stats);
+    }
+
     function renderAlertLists() {
         if (!state.invoices) return;
 
@@ -704,7 +726,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         
                         showToast(`Saving E-Way Bill for invoice ${docNo}...`);
 
-                        // Optimistic local update
                         const targetInv = state.invoices.find(inv => inv.doc_no === docNo);
                         if (targetInv) {
                             targetInv.eway_bill_no = ewayVal;
@@ -742,28 +763,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 ewayBillsList.className = "alert-list empty-state";
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
-    function calculateOverallPoStatusFromList(statuses) {
-        if (!statuses || statuses.length === 0) return 'Open';
-        const cleaned = statuses.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
-        if (cleaned.length === 0) return 'Open';
-        
-        if (cleaned.some(s => s === 'OPEN' || s === 'PENDING' || s === '')) {
-            return 'Open';
-        }
-        
-        if (cleaned.every(s => s === 'CLOSE' || s === 'CLOSED' || s === 'WORK ORDER')) {
-            if (cleaned.every(s => s === 'WORK ORDER')) return 'Work Order';
-            return 'Close';
-        }
-        return 'Open';
-    }
-
-    function calculateOverallPoStatusFromDoc(doc) {
-        if (!doc) return 'Open';
-        const po_stats = (doc.po_status || "").split('\n');
-        return calculateOverallPoStatusFromList(po_stats);
-    }
-
         } else {
             if (missingLabel) missingLabel.innerText = "Pending PO List";
             ewayDivider.style.display = "none";
@@ -774,6 +773,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!isChallan) return false;
                 return calculateOverallPoStatusFromDoc(inv) !== 'Close';
             }).sort(docNumberSortKey);
+
             statPendingMrns.innerText = pendingPoList.length;
             if (missingCount) missingCount.innerText = pendingPoList.length;
 
@@ -781,8 +781,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 missingMrnsList.className = "alert-list";
                 missingMrnsList.innerHTML = pendingPoList.map(inv => `
                     <div class="alert-item alert-item-danger">
-                        <span>Challan <strong>${inv.doc_no}</strong> is associated with an OPEN PO number.</span>
-                        <span class="alert-link edit-mrn-trigger" data-doc-no="${inv.doc_no}">Update PO</span>
+                        <span>Challan <strong>${inv.doc_no}</strong> (PO: ${inv.po_wo_no || 'N/A'}) has Open PO status.</span>
+                        <span class="alert-link edit-mrn-trigger" data-doc-no="${inv.doc_no}">Update PO Status</span>
                     </div>
                 `).join("");
 
@@ -1495,7 +1495,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- EDIT MRN & FIELD EDIT DIALOG ---
     
     function openEditModal(docNo) {
-        const doc = state.invoices.find(d => d.doc_no === docNo);
+        const doc = state.invoices.find(d => String(d.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
         if (!doc) return;
         
         editInvoiceNo.value = doc.doc_no;
