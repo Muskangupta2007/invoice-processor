@@ -409,7 +409,7 @@ document.addEventListener("DOMContentLoaded", () => {
         opt.addEventListener("click", (e) => {
             e.preventDefault();
             const fileType = opt.getAttribute("data-type");
-            const label = fileType === 'pending' ? "Pending MRNs" : "Main Ledger";
+            const label = fileType === 'work_order' ? "Work Order POs" : (fileType === 'pending' ? "Pending List" : "Main Ledger");
             
             // If Google Sheets is configured for the active company, open the live sheet in a new tab instead of downloading
             const companyKey = state.activeCompany.toLowerCase().replace(' ', '_');
@@ -467,7 +467,7 @@ document.addEventListener("DOMContentLoaded", () => {
         opt.addEventListener("click", (e) => {
             e.preventDefault();
             const fileType = opt.getAttribute("data-type");
-            const label = fileType === 'pending' ? "Pending MRNs" : "Main Ledger";
+            const label = fileType === 'work_order' ? "Work Order POs" : (fileType === 'pending' ? "Pending List" : "Main Ledger");
             
             showToast(`Downloading ${state.activeCompany} ${label} workbook...`);
 
@@ -699,11 +699,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const ewayBillsListEl = document.getElementById("eway-bills-list");
         if (!missingMrnsListEl || !ewayBillsListEl) return;
 
+        const workorderAlertSection = document.getElementById("workorder-alert-section");
+        const workorderDivider = document.getElementById("workorder-divider");
+        const workorderCount = document.getElementById("workorder-po-count");
+        const workorderPosListEl = document.getElementById("workorder-pos-list");
+
         if (state.activeDocType === 'Invoice') {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING MRNS";
             if (missingLabel) missingLabel.innerText = "Pending MRN List";
             ewayDivider.style.display = "block";
             ewayAlertSection.style.display = "block";
+            if (workorderAlertSection) workorderAlertSection.style.display = "none";
+            if (workorderDivider) workorderDivider.style.display = "none";
             
             const missingList = state.invoices.filter(inv =>
                 String(inv.mrn_status || '').toUpperCase() !== 'DONE'
@@ -812,6 +819,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (missingLabel) missingLabel.innerText = "Pending PO List";
             ewayDivider.style.display = "none";
             ewayAlertSection.style.display = "none";
+            if (workorderAlertSection) workorderAlertSection.style.display = "block";
+            if (workorderDivider) workorderDivider.style.display = "block";
             
             const pendingPoList = state.invoices.filter(inv => {
                 const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
@@ -840,6 +849,49 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 setAlertListClass(missingMrnsListEl, true);
                 missingMrnsListEl.innerHTML = `<p>No delivery challans with pending PO status.</p>`;
+            }
+
+            const workOrderList = state.invoices.filter(inv => {
+                const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
+                if (!isChallan) return false;
+                const overall = calculateOverallPoStatusFromDoc(inv);
+                const po_status = String(inv.po_status || '').toUpperCase();
+                return overall === 'Work Order' || po_status.includes('WORK ORDER') || po_status.includes('WORKORDER');
+            }).sort(docNumberSortKey);
+
+            if (workorderCount) workorderCount.innerText = workOrderList.length;
+
+            if (workorderPosListEl) {
+                if (workOrderList.length > 0) {
+                    setAlertListClass(workorderPosListEl, false);
+                    workorderPosListEl.innerHTML = `
+                        <div style="padding: 6px 14px 10px 14px; text-align: right;">
+                            <button class="btn btn-secondary btn-sm export-wo-excel-btn" style="font-size: 0.82rem; padding: 4px 10px;">
+                                <i class="fa-solid fa-file-excel"></i> Download Work Order Excel Report
+                            </button>
+                        </div>
+                    ` + workOrderList.map(inv => `
+                        <div class="alert-item alert-item-info">
+                            <span>Challan <strong>${inv.doc_no}</strong> (PO: ${inv.po_wo_no || 'N/A'}) has Work Order PO status.</span>
+                            <span class="alert-link edit-mrn-trigger" data-doc-no="${inv.doc_no}">Update PO Status</span>
+                        </div>
+                    `).join("");
+
+                    const downloadWoBtn = workorderPosListEl.querySelector(".export-wo-excel-btn");
+                    if (downloadWoBtn) {
+                        downloadWoBtn.addEventListener("click", () => triggerReportDownload("work_order"));
+                    }
+
+                    workorderPosListEl.querySelectorAll(".edit-mrn-trigger").forEach(link => {
+                        link.addEventListener("click", () => {
+                            const docNo = link.getAttribute("data-doc-no");
+                            openEditModal(docNo);
+                        });
+                    });
+                } else {
+                    setAlertListClass(workorderPosListEl, true);
+                    workorderPosListEl.innerHTML = `<p>No delivery challans with Work Order PO status.</p>`;
+                }
             }
         }
     }

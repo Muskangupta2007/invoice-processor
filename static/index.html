@@ -19,7 +19,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=4.1.0">
+    <link rel="stylesheet" href="style.css?v=5.0.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -114,7 +114,8 @@
                         </button>
                         <div class="dropdown-action-menu" id="open-excel-menu">
                             <a href="#" class="open-excel-opt" data-type="main"><i class="fa-solid fa-table"></i> Main Ledger</a>
-                            <a href="#" class="open-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending MRNs</a>
+                            <a href="#" class="open-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending List</a>
+                            <a href="#" class="open-excel-opt" data-type="work_order"><i class="fa-solid fa-briefcase"></i> Work Order POs</a>
                         </div>
                     </div>
                     <!-- Export Ledger Dropdown Split Button -->
@@ -124,7 +125,8 @@
                         </button>
                         <div class="dropdown-action-menu" id="export-excel-menu">
                             <a href="#" class="export-excel-opt" data-type="main"><i class="fa-solid fa-table"></i> Main Ledger</a>
-                            <a href="#" class="export-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending MRNs</a>
+                            <a href="#" class="export-excel-opt" data-type="pending"><i class="fa-solid fa-hourglass-half"></i> Pending List</a>
+                            <a href="#" class="export-excel-opt" data-type="work_order"><i class="fa-solid fa-briefcase"></i> Work Order POs</a>
                         </div>
                     </div>
                 </div>
@@ -286,6 +288,19 @@
                                         </h3>
                                         <div id="missing-mrns-list" class="alert-list empty-state collapsed">
                                             <p>No documents with pending MRN status.</p>
+                                        </div>
+                                    <hr class="panel-divider" id="workorder-divider" style="display: none;">
+
+                                    <!-- Work Order POs Sub-Section -->
+                                    <div class="alert-section" id="workorder-alert-section" style="display: none;">
+                                        <h3 class="alert-title-main info accordion-header collapsed" id="workorder-action-title" data-target="workorder-pos-list" style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color);">
+                                            <i class="fa-solid fa-briefcase"></i>
+                                            <span id="workorder-action-label">Work Order PO List</span>
+                                            <span class="count-badge badge-info" id="workorder-po-count">0</span>
+                                            <i class="fa-solid fa-chevron-down accordion-chevron" style="margin-left: auto;"></i>
+                                        </h3>
+                                        <div id="workorder-pos-list" class="alert-list empty-state collapsed">
+                                            <p>No delivery challans with Work Order PO status.</p>
                                         </div>
                                     </div>
 
@@ -806,6 +821,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=4.1.0"></script>
+    <script src="app.js?v=5.0.0"></script>
 </body>
 </html>
