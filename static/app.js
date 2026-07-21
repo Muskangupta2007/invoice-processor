@@ -1623,6 +1623,7 @@ document.addEventListener("DOMContentLoaded", () => {
             editInvoiceNoVal.value = doc.invoice_no || "";
             editInvoiceItemDescGroup.style.display = "none";
             document.getElementById("edit-eway-bill-group").style.display = "none";
+            if (document.getElementById("edit-asn-no-group")) document.getElementById("edit-asn-no-group").style.display = "none";
 
             // Populate Item-wise PO Status List
             const descs = (doc.item_description || "").split('\n');
@@ -1731,6 +1732,10 @@ document.addEventListener("DOMContentLoaded", () => {
             editInvoiceItemDescription.value = doc.item_description || "";
             document.getElementById("edit-eway-bill-group").style.display = "block";
             document.getElementById("edit-eway-bill").value = doc.eway_bill || "";
+            if (document.getElementById("edit-asn-no-group")) {
+                document.getElementById("edit-asn-no-group").style.display = "block";
+                document.getElementById("edit-asn-no").value = doc.asn_no || "";
+            }
         }
         
         editModal.style.display = "flex";
@@ -1759,6 +1764,9 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.mrn_no = editMrnNo.value;
             updatedData.item_description = editInvoiceItemDescription.value;
             updatedData.eway_bill = document.getElementById("edit-eway-bill").value;
+            if (document.getElementById("edit-asn-no")) {
+                updatedData.asn_no = document.getElementById("edit-asn-no").value.trim();
+            }
 
             // Optimistic local update
             const targetInv = state.invoices.find(inv => String(inv.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
@@ -1767,6 +1775,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 targetInv.mrn_date = editMrnDate.value;
                 targetInv.mrn_no = editMrnNo.value;
                 targetInv.remarks = editRemarks.value;
+                if (updatedData.asn_no !== undefined) {
+                    targetInv.asn_no = updatedData.asn_no;
+                }
                 if (updatedData.eway_bill) {
                     targetInv.eway_bill_no = updatedData.eway_bill;
                     targetInv.eway_bill = 'DONE';
