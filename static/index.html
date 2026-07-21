@@ -19,7 +19,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=5.0.0">
+    <link rel="stylesheet" href="style.css?v=5.1.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -251,6 +251,15 @@
                                 <div class="stat-info">
                                     <h3>Pending E-Way Bill</h3>
                                     <p id="stat-pending-eway" class="stat-number">0</p>
+                                </div>
+                            </div>
+
+                            <!-- Card 6: Work Order POs (Challans only) -->
+                            <div class="stat-card glass-card info-gradient" id="card-work-order" style="cursor: pointer; display: none;" title="Double-click to download Work Order PO report">
+                                <div class="stat-icon"><i class="fa-solid fa-briefcase"></i></div>
+                                <div class="stat-info">
+                                    <h3>Work Order POs</h3>
+                                    <p id="stat-work-order-pos" class="stat-number">0</p>
                                 </div>
                             </div>
                         </div>
@@ -821,6 +830,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=5.0.0"></script>
+    <script src="app.js?v=5.1.0"></script>
 </body>
 </html>

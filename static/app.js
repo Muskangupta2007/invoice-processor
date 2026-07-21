@@ -60,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const cardPendingMrn = document.getElementById("card-pending-mrn");
     const cardSequenceGaps = document.getElementById("card-sequence-gaps");
     const cardPendingEway = document.getElementById("card-pending-eway");
+    const cardWorkOrder = document.getElementById("card-work-order");
 
     // Scoped Stats Numbers
     const statTotalTitle = document.getElementById("stat-total-title");
@@ -69,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const statPendingMrns = document.getElementById("stat-pending-mrns");
     const statSequenceGaps = document.getElementById("stat-sequence-gaps");
     const statPendingEway = document.getElementById("stat-pending-eway");
+    const statWorkOrderPos = document.getElementById("stat-work-order-pos");
     
     // Scoped Action Center Elements
     const sequenceAuditTitle = document.getElementById("sequence-audit-title");
@@ -378,9 +380,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (state.activeDocType === 'Invoice') {
-            cardPendingEway.style.display = "flex";
+            if (cardPendingEway) cardPendingEway.style.display = "flex";
+            if (cardWorkOrder) cardWorkOrder.style.display = "none";
         } else {
-            cardPendingEway.style.display = "none";
+            if (cardPendingEway) cardPendingEway.style.display = "none";
+            if (cardWorkOrder) cardWorkOrder.style.display = "flex";
         }
     }
 
@@ -499,6 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     cardSequenceGaps.addEventListener("dblclick", () => triggerReportDownload("sequence_gap"));
     cardPendingEway.addEventListener("dblclick", () => triggerReportDownload("pending_eway"));
+    if (cardWorkOrder) cardWorkOrder.addEventListener("dblclick", () => triggerReportDownload("work_order"));
 
     themeToggle.addEventListener("click", () => {
         document.body.classList.toggle("light-mode");
@@ -860,6 +865,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }).sort(docNumberSortKey);
 
             if (workorderCount) workorderCount.innerText = workOrderList.length;
+            if (statWorkOrderPos) statWorkOrderPos.innerText = workOrderList.length;
 
             if (workorderPosListEl) {
                 if (workOrderList.length > 0) {
