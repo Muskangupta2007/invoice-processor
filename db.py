@@ -277,10 +277,10 @@ def get_documents(company=None, doc_type=None):
     
     conditions = []
     if company:
-        conditions.append("company = ?")
+        conditions.append("LOWER(company) = LOWER(?)")
         params.append(company)
     if doc_type:
-        conditions.append("doc_type = ?")
+        conditions.append("LOWER(doc_type) = LOWER(?)")
         params.append(doc_type)
         
     if conditions:

@@ -731,7 +731,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const isInvoice = String(inv.doc_type || '').toLowerCase() === 'invoice';
                 const ewayStatus = String(inv.eway_bill || '').toUpperCase();
                 const ewayNo = String(inv.eway_bill_no || '').trim();
-                const amt = parseFloat(inv.amount || 0);
+                const rawAmtStr = String(inv.amount || '0').replace(/,/g, '').trim();
+                const amt = parseFloat(rawAmtStr) || 0;
                 if (!isInvoice) return false;
                 if (ewayStatus === 'DONE' || ewayStatus === 'N/A') return false;
                 if (ewayNo) return false;
