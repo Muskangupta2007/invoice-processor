@@ -599,7 +599,12 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
             console.error("[DEBUG] Error fetching invoices:", err);
-            showToast("Failed to fetch dashboard metrics.", "danger");
+            setTimeout(() => {
+                const currentHash = window.location.hash;
+                if (!currentHash || currentHash === "#dashboard" || currentHash === "#") {
+                    fetchData();
+                }
+            }, 3000);
         });
 
         const reportsPromise = fetch(`/api/reports?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
