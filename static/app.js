@@ -742,6 +742,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 ewayBillsList.className = "alert-list empty-state";
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
+    function calculateOverallPoStatusFromList(statuses) {
+        if (!statuses || statuses.length === 0) return 'Open';
+        const cleaned = statuses.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+        if (cleaned.length === 0) return 'Open';
+        
+        if (cleaned.some(s => s === 'OPEN' || s === 'PENDING' || s === '')) {
+            return 'Open';
+        }
+        
+        if (cleaned.every(s => s === 'CLOSE' || s === 'CLOSED' || s === 'WORK ORDER')) {
+            if (cleaned.every(s => s === 'WORK ORDER')) return 'Work Order';
+            return 'Close';
+        }
+        return 'Open';
+    }
+
+    function calculateOverallPoStatusFromDoc(doc) {
+        if (!doc) return 'Open';
+        const po_stats = (doc.po_status || "").split('\n');
+        return calculateOverallPoStatusFromList(po_stats);
+    }
+
         } else {
             if (missingLabel) missingLabel.innerText = "Pending PO List";
             ewayDivider.style.display = "none";
@@ -749,12 +771,9 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const pendingPoList = state.invoices.filter(inv => {
                 const isChallan = String(inv.doc_type || '').toLowerCase() === 'challan';
-                const poStatus = String(inv.po_status || '').toUpperCase();
                 if (!isChallan) return false;
-                if (!poStatus) return true;
-                const statuses = poStatus.split('\n').map(s => s.trim());
-                return statuses.some(s => s !== 'CLOSED' && s !== 'CLOSE');
-            });
+                return calculateOverallPoStatusFromDoc(inv) !== 'Close';
+            }).sort(docNumberSortKey);
             statPendingMrns.innerText = pendingPoList.length;
             if (missingCount) missingCount.innerText = pendingPoList.length;
 
@@ -1051,14 +1070,36 @@ document.addEventListener("DOMContentLoaded", () => {
                     const uom = uoms[i] || '';
                     const price = prices[i] || '';
                     const po_qty = po_qties[i] || '';
-                    const po_status = po_statuses[i] || '';
+                    let itemSt = (po_statuses[i] || '').trim();
+                    let itemBadgeClass = "badge-warning";
+                    if (!itemSt || itemSt.toUpperCase() === 'OPEN') {
+                        itemSt = 'Open';
+                        itemBadgeClass = 'badge-warning';
+                    } else if (itemSt.toUpperCase() === 'CLOSE' || itemSt.toUpperCase() === 'CLOSED') {
+                        itemSt = 'Close';
+                        itemBadgeClass = 'badge-success';
+                    } else if (itemSt.toUpperCase() === 'WORK ORDER' || itemSt.toUpperCase() === 'WORKORDER') {
+                        itemSt = 'Work Order';
+                        itemBadgeClass = 'badge-info';
+                    } else {
+                        itemSt = 'Open';
+                        itemBadgeClass = 'badge-warning';
+                    }
                     const diff = calculateDifference(qty, po_qty);
                     
                     let rowHtml = '<tr>';
                     
                     if (i === 0) {
+                        const overallSt = calculateOverallPoStatusFromDoc(inv);
+                        let overallBadgeClass = "badge-warning";
+                        if (overallSt === 'Close') overallBadgeClass = "badge-success";
+                        else if (overallSt === 'Work Order') overallBadgeClass = "badge-info";
+
                         rowHtml += `<td rowspan="${numItems}" class="col-sno">${index + 1}</td>`;
-                        rowHtml += `<td rowspan="${numItems}" class="col-invoice">${inv.doc_no || ''}</td>`;
+                        rowHtml += `<td rowspan="${numItems}" class="col-invoice">
+                            <strong>${inv.doc_no || ''}</strong>
+                            <div style="margin-top: 4px;"><span class="count-badge ${overallBadgeClass}" title="Overall PO Status">${overallSt}</span></div>
+                        </td>`;
                     }
                     
                     // Item level fields (always present in each row)
@@ -1072,7 +1113,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         rowHtml += `<td rowspan="${numItems}">${inv.delivery_site || ''}</td>`;
                     }
                     
-                    rowHtml += `<td>${po_status}</td>`;
+                    rowHtml += `<td><span class="count-badge ${itemBadgeClass}">${itemSt}</span></td>`;
                     
                     if (i === 0) {
                         rowHtml += `<td rowspan="${numItems}">${inv.po_wo_no || ''}</td>`;
@@ -1480,6 +1521,107 @@ document.addEventListener("DOMContentLoaded", () => {
             editInvoiceNoVal.value = doc.invoice_no || "";
             editInvoiceItemDescGroup.style.display = "none";
             document.getElementById("edit-eway-bill-group").style.display = "none";
+
+            // Populate Item-wise PO Status List
+            const descs = (doc.item_description || "").split('\n');
+            const qtys = (doc.deliver_qty || "").split('\n');
+            const uoms = (doc.uom || "").split('\n');
+            const prices = (doc.unit_price || "").split('\n');
+            const po_qtys = (doc.po_qty || "").split('\n');
+            const po_stats = (doc.po_status || "").split('\n');
+
+            const numItems = Math.max(descs.length, qtys.length, uoms.length, prices.length, po_qtys.length, po_stats.length, 1);
+            
+            const container = document.getElementById("edit-challan-items-container");
+            if (container) {
+                container.innerHTML = "";
+
+                const getItemStatus = (i) => {
+                    let st = (po_stats[i] || '').trim();
+                    if (!st || st.toUpperCase() === 'OPEN') return 'Open';
+                    if (st.toUpperCase() === 'CLOSE' || st.toUpperCase() === 'CLOSED') return 'Close';
+                    if (st.toUpperCase() === 'WORK ORDER' || st.toUpperCase() === 'WORKORDER') return 'Work Order';
+                    return 'Open';
+                };
+
+                for (let i = 0; i < numItems; i++) {
+                    const desc = descs[i] || `Item ${i+1}`;
+                    const delQty = qtys[i] || '';
+                    const uom = uoms[i] || '';
+                    const poQty = po_qtys[i] || '';
+                    const curSt = getItemStatus(i);
+
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "item-status-card";
+                    itemDiv.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;";
+                    itemDiv.innerHTML = `
+                        <div style="flex-grow: 1;">
+                            <div style="font-weight: 600; font-size: 13px; color: var(--text-primary);">
+                                <strong>Item ${i+1}:</strong> ${desc}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                                Deliver Qty: ${delQty} ${uom} | PO Qty: ${poQty}
+                            </div>
+                        </div>
+                        <div style="width: 140px; flex-shrink: 0;">
+                            <label style="font-size: 10px; font-weight: 600; display: block; margin-bottom: 2px; color: var(--text-secondary);">Item PO Status</label>
+                            <select class="item-po-status-select form-control" data-index="${i}" style="width: 100%; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-primary); font-weight: 600; font-size: 12px;">
+                                <option value="Open" ${curSt === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="Close" ${curSt === 'Close' ? 'selected' : ''}>Close</option>
+                                <option value="Work Order" ${curSt === 'Work Order' ? 'selected' : ''}>Work Order</option>
+                            </select>
+                        </div>
+                    `;
+                    container.appendChild(itemDiv);
+                }
+
+                // Sync initial Overall PO Status dropdown & badge
+                const overallSelect = document.getElementById("edit-overall-po-status");
+                const overallBadge = document.getElementById("overall-po-status-badge");
+                
+                const updateOverallBadge = (statusVal) => {
+                    if (!overallBadge) return;
+                    overallBadge.innerText = statusVal;
+                    if (statusVal === 'Close') {
+                        overallBadge.className = 'count-badge badge-success';
+                    } else if (statusVal === 'Work Order') {
+                        overallBadge.className = 'count-badge badge-info';
+                    } else {
+                        overallBadge.className = 'count-badge badge-warning';
+                    }
+                };
+
+                const initialOverall = calculateOverallPoStatusFromDoc(doc);
+                if (overallSelect) overallSelect.value = initialOverall;
+                updateOverallBadge(initialOverall);
+
+                // Helper to sync all item select dropdowns back to hidden editPoStatus textarea & update overall dropdown
+                const syncItemsToHiddenTextarea = () => {
+                    const itemSelects = container.querySelectorAll(".item-po-status-select");
+                    const statuses = Array.from(itemSelects).map(sel => sel.value);
+                    editPoStatus.value = statuses.join("\n");
+                    
+                    const newOverall = calculateOverallPoStatusFromList(statuses);
+                    if (overallSelect) overallSelect.value = newOverall;
+                    updateOverallBadge(newOverall);
+                };
+
+                // Requirement 2 & 4: Event listener for individual item dropdown changes
+                container.querySelectorAll(".item-po-status-select").forEach(sel => {
+                    sel.addEventListener("change", syncItemsToHiddenTextarea);
+                });
+
+                // Requirement 3 & 4: Event listener for Overall PO Status dropdown change
+                if (overallSelect) {
+                    overallSelect.onchange = () => {
+                        const targetVal = overallSelect.value;
+                        container.querySelectorAll(".item-po-status-select").forEach(sel => {
+                            sel.value = targetVal;
+                        });
+                        syncItemsToHiddenTextarea();
+                    };
+                }
+            }
         } else {
             editMrnSection.style.display = "grid";
             editChallanFields.style.display = "none";

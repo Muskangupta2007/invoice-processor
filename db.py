@@ -547,6 +547,23 @@ def doc_number_sort_key(doc):
         return (prefix.lower(), last_num, doc_no.lower())
     return (doc_no.lower(), 0, doc_no.lower())
 
+def calculate_overall_po_status(doc):
+    po_status_str = str(doc.get('po_status') or '').strip()
+    if not po_status_str:
+        return 'Open'
+    statuses = [s.strip().upper() for s in po_status_str.split('\n') if s.strip()]
+    if not statuses:
+        return 'Open'
+    # Rule 4: If EVEN ONE item has Open, Overall PO Status MUST NOT be Close -> it is Open
+    if any(s in ['OPEN', 'PENDING', ''] for s in statuses):
+        return 'Open'
+    # Rule 4: Close ONLY IF every item is Close or Work Order
+    if all(s in ['CLOSE', 'CLOSED', 'WORK ORDER'] for s in statuses):
+        if all(s == 'WORK ORDER' for s in statuses):
+            return 'Work Order'
+        return 'Close'
+    return 'Open'
+
 def sync_to_excel(company=None, sync_main=True, sync_pending=True):
     """
     Syncs SQLite records. Overwrites the {Company}.xlsx file
@@ -572,7 +589,7 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
         
         cols_chal = [
             'S.No', 'Delivery Challan No', 'Item Description', 'Deliver Qty', 'UOM',
-            'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'PO Number',
+            'Unit Price', 'Delivery Date', 'Delivery Location', 'PO Status', 'Overall PO Status', 'PO Number',
             'PO Qty', 'Difference Between Delivery & PO Qty', 'Invoice Number', 
             'MRN Status', 'MRN Date', 'MRN No', 'Remarks'
         ]
@@ -701,7 +718,18 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                                 elif col == 'Delivery Location':
                                     row_data.append(doc.get('delivery_site', ''))
                                 elif col == 'PO Status':
-                                    row_data.append(po_statuses[i])
+                                    st = str(po_statuses[i] or '').strip()
+                                    if not st:
+                                        st = 'Open'
+                                    elif st.upper() in ['CLOSE', 'CLOSED']:
+                                        st = 'Close'
+                                    elif st.upper() in ['WORK ORDER', 'WORKORDER']:
+                                        st = 'Work Order'
+                                    else:
+                                        st = 'Open'
+                                    row_data.append(st)
+                                elif col == 'Overall PO Status':
+                                    row_data.append(calculate_overall_po_status(doc))
                                 elif col == 'PO Number':
                                     row_data.append(doc.get('po_wo_no', ''))
                                 elif col == 'PO Qty':

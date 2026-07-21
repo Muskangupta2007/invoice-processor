@@ -161,6 +161,16 @@ def sync_to_google_sheet(company):
             diff = d_val - p_val
             diff_str = str(int(diff)) if diff.is_integer() else f"{diff:.2f}"
             
+            st_item = str(po_statuses[i] or '').strip()
+            if not st_item:
+                st_item = 'Open'
+            elif st_item.upper() in ['CLOSE', 'CLOSED']:
+                st_item = 'Close'
+            elif st_item.upper() in ['WORK ORDER', 'WORKORDER']:
+                st_item = 'Work Order'
+            else:
+                st_item = 'Open'
+
             formatted_challans.append({
                 'S.No': row_idx_counter,
                 'Delivery Challan No': doc.get('doc_no', ''),
@@ -170,7 +180,8 @@ def sync_to_google_sheet(company):
                 'Unit Price': prices[i],
                 'Delivery Date': doc.get('doc_date', ''),
                 'Delivery Location': doc.get('delivery_site', ''),
-                'PO Status': po_statuses[i],
+                'PO Status': st_item,
+                'Overall PO Status': db.calculate_overall_po_status(doc),
                 'PO Number': doc.get('po_wo_no', ''),
                 'PO Qty': po_qtys[i],
                 'Difference Between Delivery & PO Qty': diff_str,

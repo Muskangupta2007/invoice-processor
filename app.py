@@ -503,7 +503,7 @@ def get_reports():
         pending_po = sum(
             1 for doc in documents 
             if doc.get('doc_type') == 'Challan' 
-            and (not doc.get('po_status') or any(s.strip().upper() != 'CLOSED' for s in str(doc.get('po_status')).split('\n')))
+            and db.calculate_overall_po_status(doc) != 'Close'
         )
         pending_mrn = sum(1 for doc in documents if str(doc.get('mrn_status', '')).upper() != 'DONE')
         pending_eway = sum(
@@ -745,7 +745,7 @@ def download_report(company, report_type):
             ws.title = sheet_name
             
             # Filter by Challan
-            pending_po_list = [d for d in db.get_documents(company, 'Challan') if str(d.get('po_status', '')).upper() != 'CLOSED']
+            pending_po_list = [d for d in db.get_documents(company, 'Challan') if db.calculate_overall_po_status(d) != 'Close']
             
             cols = [
                 'S.No', 'Delivery Challan', 'Item Description', 'Deliver Qty', 'UOM',
