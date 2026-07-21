@@ -1095,8 +1095,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
         
-        const fragment = document.createRange().createContextualFragment(finalHtml);
-        ledgerBody.replaceChildren(fragment);
+        ledgerBody.innerHTML = finalHtml;
 
         document.querySelectorAll(".open-edit-btn").forEach(el => {
             el.addEventListener("click", () => {
