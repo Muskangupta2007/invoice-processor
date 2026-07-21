@@ -500,6 +500,62 @@ body.light-mode .theme-btn:hover {
     gap: 8px;
 }
 
+.alert-title-main.accordion-header {
+    cursor: pointer;
+    user-select: none;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.alert-title-main.accordion-header:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.alert-title-main .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.count-badge {
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.count-badge.badge-warning {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.count-badge.badge-danger {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--danger);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.accordion-chevron {
+    font-size: 12px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-secondary);
+}
+
+.alert-title-main.accordion-header.collapsed .accordion-chevron {
+    transform: rotate(-90deg);
+}
+
 .alert-title-main.warning { color: var(--warning); }
 .alert-title-main.danger { color: var(--danger); }
 
@@ -507,6 +563,14 @@ body.light-mode .theme-btn:hover {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    max-height: 2000px;
+    opacity: 1;
+    overflow: hidden;
+}
+
+.alert-list.collapsed {
+    display: none !important;
 }
 
 .alert-list.empty-state {

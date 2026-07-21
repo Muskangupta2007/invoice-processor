@@ -611,6 +611,8 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const gaps = data.sequence_check.missing_numbers || [];
         statSequenceGaps.innerText = gaps.length;
+        const seqCountEl = document.getElementById("sequence-audit-count");
+        if (seqCountEl) seqCountEl.innerText = gaps.length;
 
         if (gaps.length > 0) {
             sequenceGapsList.className = "alert-list";
@@ -629,7 +631,12 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderAlertLists() {
         if (!state.invoices) return;
 
+        const missingLabel = document.getElementById("missing-action-label");
+        const missingCount = document.getElementById("missing-mrn-count");
+        const ewayCount = document.getElementById("eway-bill-count");
+
         if (state.activeDocType === 'Invoice') {
+            if (missingLabel) missingLabel.innerText = "Pending MRN List";
             ewayDivider.style.display = "block";
             ewayAlertSection.style.display = "block";
             
@@ -637,6 +644,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 String(inv.mrn_status || '').toUpperCase() !== 'DONE'
             ).sort(docNumberSortKey);
             statPendingMrns.innerText = missingList.length;
+            if (missingCount) missingCount.innerText = missingList.length;
 
             if (missingList.length > 0) {
                 missingMrnsList.className = "alert-list";
@@ -669,6 +677,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return ewayStatus === 'PENDING' || amt >= 50000;
             });
             statPendingEway.innerText = pendingEwayList.length;
+            if (ewayCount) ewayCount.innerText = pendingEwayList.length;
 
             if (pendingEwayList.length > 0) {
                 ewayBillsList.className = "alert-list";
@@ -734,6 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
         } else {
+            if (missingLabel) missingLabel.innerText = "Pending PO List";
             ewayDivider.style.display = "none";
             ewayAlertSection.style.display = "none";
             
@@ -746,6 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return statuses.some(s => s !== 'CLOSED' && s !== 'CLOSE');
             });
             statPendingMrns.innerText = pendingPoList.length;
+            if (missingCount) missingCount.innerText = pendingPoList.length;
 
             if (pendingPoList.length > 0) {
                 missingMrnsList.className = "alert-list";
@@ -1986,6 +1997,18 @@ function writeSheetData(sheetName, dataList) {
         })
         .catch(err => {
             console.error("Settings lock auth error:", err);
+        });
+    });
+
+    // Accordion dropdown toggles for Critical Action Center
+    document.querySelectorAll(".accordion-header").forEach(header => {
+        header.addEventListener("click", () => {
+            const targetId = header.getAttribute("data-target");
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                header.classList.toggle("collapsed");
+                targetEl.classList.toggle("collapsed");
+            }
         });
     });
 
