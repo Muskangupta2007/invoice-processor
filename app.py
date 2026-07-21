@@ -21,27 +21,6 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db.init_db()
 
-@app.after_request
-def compress_response(response):
-    if response.direct_passthrough:
-        return response
-    try:
-        accept_encoding = request.headers.get('Accept-Encoding', '')
-        if 'gzip' in accept_encoding.lower() and response.status_code == 200 and not response.headers.get('Content-Encoding'):
-            data = response.get_data()
-            if len(data) > 500:
-                gzip_buffer = io.BytesIO()
-                with gzip.GzipFile(mode='wb', fileobj=gzip_buffer) as gzfile:
-                    gzfile.write(data)
-                compressed_data = gzip_buffer.getvalue()
-                response.set_data(compressed_data)
-                response.headers['Content-Encoding'] = 'gzip'
-                response.headers['Content-Length'] = len(compressed_data)
-                response.headers['Vary'] = 'Accept-Encoding'
-    except Exception as e:
-        print(f"Gzip compression skipped: {e}")
-    return response
-
 # --- AUTHENTICATION DECORATOR ---
 def requires_auth(f):
     @wraps(f)
