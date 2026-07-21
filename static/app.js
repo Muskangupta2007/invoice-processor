@@ -637,6 +637,12 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => console.error("Error fetching settings indicator:", err));
     }
 
+    function setAlertListClass(el, isEmpty) {
+        if (!el) return;
+        const isCollapsed = el.classList.contains("collapsed");
+        el.className = "alert-list" + (isEmpty ? " empty-state" : "") + (isCollapsed ? " collapsed" : "");
+    }
+
     function updateDashboardStats(data) {
         statTotalInvoices.innerText = data.invoices.length;
         
@@ -644,12 +650,6 @@ document.addEventListener("DOMContentLoaded", () => {
         statSequenceGaps.innerText = gaps.length;
         const seqCountEl = document.getElementById("sequence-audit-count");
         if (seqCountEl) seqCountEl.innerText = gaps.length;
-
-        const setAlertListClass = (el, isEmpty) => {
-            if (!el) return;
-            const isCollapsed = el.classList.contains("collapsed");
-            el.className = "alert-list" + (isEmpty ? " empty-state" : "") + (isCollapsed ? " collapsed" : "");
-        };
 
         if (gaps.length > 0) {
             setAlertListClass(sequenceGapsList, false);
@@ -694,6 +694,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const missingCount = document.getElementById("missing-mrn-count");
         const ewayCount = document.getElementById("eway-bill-count");
         const statPendingTitle = document.querySelector("#card-pending-mrns h3");
+        
+        const missingMrnsListEl = document.getElementById("missing-mrns-list");
+        const ewayBillsListEl = document.getElementById("eway-bills-list");
+        if (!missingMrnsListEl || !ewayBillsListEl) return;
 
         if (state.activeDocType === 'Invoice') {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING MRNS";
@@ -708,8 +712,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (missingCount) missingCount.innerText = missingList.length;
 
             if (missingList.length > 0) {
-                setAlertListClass(missingMrnsList, false);
-                missingMrnsList.innerHTML = missingList.map(inv => `
+                setAlertListClass(missingMrnsListEl, false);
+                missingMrnsListEl.innerHTML = missingList.map(inv => `
                     <div class="alert-item alert-item-danger">
                         <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is missing MRN.</span>
                         <span class="alert-link edit-mrn-trigger" data-doc-no="${inv.doc_no}">Update MRN</span>
@@ -723,8 +727,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                setAlertListClass(missingMrnsList, true);
-                missingMrnsList.innerHTML = `<p>No records with pending MRN status.</p>`;
+                setAlertListClass(missingMrnsListEl, true);
+                missingMrnsListEl.innerHTML = `<p>No records with pending MRN status.</p>`;
             }
             
             const pendingEwayList = state.invoices.filter(inv => {
@@ -742,8 +746,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (ewayCount) ewayCount.innerText = pendingEwayList.length;
 
             if (pendingEwayList.length > 0) {
-                setAlertListClass(ewayBillsList, false);
-                ewayBillsList.innerHTML = pendingEwayList.map(inv => `
+                setAlertListClass(ewayBillsListEl, false);
+                ewayBillsListEl.innerHTML = pendingEwayList.map(inv => `
                     <div class="alert-item alert-item-warning" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px;">
                         <span>Invoice <strong>${inv.doc_no}</strong> (${inv.bill_to || 'Unknown'}) is ≥ ₹50,000 but missing E-Way Bill No.</span>
                         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
@@ -800,8 +804,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                setAlertListClass(ewayBillsList, true);
-                ewayBillsList.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
+                setAlertListClass(ewayBillsListEl, true);
+                ewayBillsListEl.innerHTML = `<p>No invoices with pending E-Way bill status.</p>`;
             }
         } else {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
@@ -819,8 +823,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (missingCount) missingCount.innerText = pendingPoList.length;
 
             if (pendingPoList.length > 0) {
-                setAlertListClass(missingMrnsList, false);
-                missingMrnsList.innerHTML = pendingPoList.map(inv => `
+                setAlertListClass(missingMrnsListEl, false);
+                missingMrnsListEl.innerHTML = pendingPoList.map(inv => `
                     <div class="alert-item alert-item-danger">
                         <span>Challan <strong>${inv.doc_no}</strong> (PO: ${inv.po_wo_no || 'N/A'}) has Open PO status.</span>
                         <span class="alert-link edit-mrn-trigger" data-doc-no="${inv.doc_no}">Update PO Status</span>
@@ -834,8 +838,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                 });
             } else {
-                setAlertListClass(missingMrnsList, true);
-                missingMrnsList.innerHTML = `<p>No delivery challans with pending PO status.</p>`;
+                setAlertListClass(missingMrnsListEl, true);
+                missingMrnsListEl.innerHTML = `<p>No delivery challans with pending PO status.</p>`;
             }
         }
     }
