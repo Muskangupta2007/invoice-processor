@@ -558,8 +558,8 @@ def calculate_overall_po_status(doc):
     if any(s in ['OPEN', 'PENDING', ''] for s in statuses):
         return 'Open'
     # Rule 4: Close ONLY IF every item is Close or Work Order
-    if all(s in ['CLOSE', 'CLOSED', 'WORK ORDER'] for s in statuses):
-        if all(s == 'WORK ORDER' for s in statuses):
+    if all(s in ['CLOSE', 'CLOSED', 'WORK ORDER', 'WORKORDER'] for s in statuses):
+        if all(s in ['WORK ORDER', 'WORKORDER'] for s in statuses):
             return 'Work Order'
         return 'Close'
     return 'Open'

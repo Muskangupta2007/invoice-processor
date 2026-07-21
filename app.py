@@ -502,13 +502,13 @@ def get_reports():
         
         pending_po = sum(
             1 for doc in documents 
-            if doc.get('doc_type') == 'Challan' 
+            if str(doc.get('doc_type') or '').lower() == 'challan' 
             and db.calculate_overall_po_status(doc) != 'Close'
         )
         pending_mrn = sum(1 for doc in documents if str(doc.get('mrn_status', '')).upper() != 'DONE')
         pending_eway = sum(
             1 for doc in documents 
-            if doc.get('doc_type') == 'Invoice' 
+            if str(doc.get('doc_type') or '').lower() == 'invoice' 
             and str(doc.get('eway_bill', '')).upper() not in ['DONE', 'N/A']
             and not str(doc.get('eway_bill_no') or '').strip()
             and (doc.get('amount') or 0.0) >= 50000 
