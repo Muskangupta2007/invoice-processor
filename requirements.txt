@@ -1,7 +1,6 @@
 flask
 pandas
 openpyxl
-zeroconf
 requests
 gunicorn
 psycopg2-binary
