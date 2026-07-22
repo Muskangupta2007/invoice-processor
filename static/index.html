@@ -19,7 +19,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=6.0.0">
+    <link rel="stylesheet" href="style.css?v=6.1.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -682,7 +682,13 @@
                             </div>
                             <div class="form-group">
                                 <label for="edit-mrn-date">MRN Date</label>
-                                <input type="text" id="edit-mrn-date" placeholder="e.g. 05 June 2026">
+                                <div class="date-picker-input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                                    <input type="text" id="edit-mrn-date" placeholder="e.g. 05 June 2026" style="width: 100%; padding-right: 38px;">
+                                    <button type="button" id="edit-mrn-date-btn" title="Open Calendar Picker" style="position: absolute; right: 8px; background: none; border: none; color: var(--primary); cursor: pointer; padding: 6px 8px; font-size: 15px; display: flex; align-items: center; justify-content: center; z-index: 1;">
+                                        <i class="fa-solid fa-calendar-days"></i>
+                                    </button>
+                                    <input type="date" id="edit-mrn-date-picker" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; opacity: 0; cursor: pointer; z-index: 5;">
+                                </div>
                             </div>
                             <div class="form-group span-2">
                                 <label for="edit-mrn-no">MRN Number</label>
@@ -834,6 +840,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=6.0.0"></script>
+    <script src="app.js?v=6.1.0"></script>
 </body>
 </html>
