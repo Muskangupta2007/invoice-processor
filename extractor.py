@@ -130,7 +130,7 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
 
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
-    Extracts Delivery Challan Number from Azure Document Intelligence result JSON
+    Extracts Delivery Challan / Delivery Note Number from Azure Document Intelligence result JSON
     (Key-Value pairs & document fields) or raw OCR text content.
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
@@ -139,32 +139,38 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
     analyze_result = result_json.get("analyzeResult", {})
     kv_pairs = analyze_result.get("keyValuePairs", [])
+    target_keys = ["delivery note", "challan", "dc no", "dc number", "delivery challan", "dc #", "challan #"]
+    
     for kv in kv_pairs:
         key_text = str(kv.get("key", {}).get("content", "")).lower()
         val_text = str(kv.get("value", {}).get("content", "")).strip()
-        if ("challan" in key_text or "dc no" in key_text or "dc number" in key_text or "delivery challan" in key_text) and val_text:
-            if val_text.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
-                return val_text
+        if any(k in key_text for k in target_keys) and val_text:
+            clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
+            if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                return clean_val
 
     # 2. Inspect Document Level Fields
     documents = analyze_result.get("documents", [])
     if documents:
         fields = documents[0].get("fields", {})
-        for field_key in ["ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]:
+        target_fields = ["DeliveryNote", "DeliveryNoteNo", "DeliveryNoteNumber", "ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]
+        for field_key in target_fields:
             if field_key in fields:
                 f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
-                if f_val and f_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
-                    return f_val
+                clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
+                if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                    return clean_val
 
     if not content:
         return None
         
     normalized_content = " ".join(str(content).split())
     
-    # 3. Regex matching Challan No patterns in OCR content
+    # 3. Regex matching Delivery Note / Delivery Challan No patterns in OCR content
     patterns = [
-        r'(?i)(?:delivery\s*challan|challan|d\.?c\.?)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9/\-_]{3,35})',
-        r'(?i)(?:challan|delivery\s*challan)\s*[\.:#-]*\s*([a-zA-Z0-9/\-_]{3,35})'
+        r'(?i)(?:delivery\s*note|delivery\s*challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})',
+        r'(?i)\bchallan\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})',
+        r'(?i)\bd\.?c\.?\s*(?:no|number|num)\s*[\.:#-]+\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})'
     ]
     
     for pat in patterns:
