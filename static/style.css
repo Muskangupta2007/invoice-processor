@@ -1495,98 +1495,213 @@ body.light-mode .dropdown-action-menu a:hover {
     text-align: center;
 }
 
+/* ==========================================================================
+   AMBIENT MESH & PREMIUM LOGIN AESTHETICS (v8.0.0)
+   ========================================================================== */
+
 .login-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: radial-gradient(circle at center, rgba(17, 20, 34, 0.9) 0%, #0d0f1a 100%);
-    backdrop-filter: blur(12px);
+    background: #090b15;
     z-index: 10000;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 20px;
+    overflow: hidden;
 }
 
-.login-box {
+/* Floating ambient glowing mesh orbs */
+.ambient-mesh {
+    position: absolute;
     width: 100%;
-    max-width: 420px;
-    padding: 40px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.ambient-mesh .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+}
+
+.ambient-mesh .orb-1 {
+    width: 450px;
+    height: 450px;
+    top: -100px;
+    left: -100px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.6) 0%, rgba(139, 92, 246, 0.2) 70%);
+    animation: floatOrb1 18s ease-in-out infinite alternate;
+}
+
+.ambient-mesh .orb-2 {
+    width: 500px;
+    height: 500px;
+    bottom: -150px;
+    right: -100px;
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, rgba(168, 85, 247, 0.15) 70%);
+    animation: floatOrb2 22s ease-in-out infinite alternate;
+}
+
+.ambient-mesh .orb-3 {
+    width: 350px;
+    height: 350px;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(99, 102, 241, 0.1) 70%);
+    animation: floatOrb3 15s ease-in-out infinite alternate;
+}
+
+@keyframes floatOrb1 {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(120px, 80px) scale(1.15); }
+}
+
+@keyframes floatOrb2 {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(-100px, -90px) scale(1.2); }
+}
+
+@keyframes floatOrb3 {
+    0% { transform: translate(-50%, -50%) scale(0.9); }
+    100% { transform: translate(-40%, -60%) scale(1.1); }
+}
+
+/* Glassmorphic Login Box */
+.login-box {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 430px;
+    padding: 44px 38px;
+    border-radius: 24px;
+    background: rgba(17, 20, 36, 0.65);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5),
+                0 0 40px rgba(99, 102, 241, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
     text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .login-logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 14px;
     margin-bottom: 8px;
 }
 
 .login-logo i {
-    font-size: 32px;
-    background: linear-gradient(135deg, #7b83eb, #3cd5a7);
+    font-size: 34px;
+    background: linear-gradient(135deg, #818cf8 0%, #38bdf8 50%, #34d399 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 10px rgba(99, 102, 241, 0.4));
 }
 
 .login-logo h2 {
     font-family: 'Outfit', sans-serif;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 800;
     letter-spacing: -0.5px;
     color: #ffffff;
 }
 
 .login-logo h2 span {
-    background: linear-gradient(135deg, #7b83eb, #3cd5a7);
+    background: linear-gradient(135deg, #818cf8 0%, #38bdf8 50%, #34d399 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .login-subtitle {
-    font-size: 13px;
-    color: var(--text-secondary);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
-    letter-spacing: 2px;
-    font-weight: 600;
+    letter-spacing: 2.5px;
+    font-weight: 700;
     margin-bottom: 32px;
 }
 
-/* --- ALERT ITEMS & AUTH ERROR STYLING --- */
+/* Primary Button Glow Gradient */
+.btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    padding: 14px 24px !important;
+    border-radius: 12px !important;
+    letter-spacing: 0.3px !important;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px) scale(1.01) !important;
+    box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(139, 92, 246, 0.3) !important;
+}
+
+.btn-primary:active {
+    transform: translateY(0) scale(0.99) !important;
+}
+
+/* Enhanced Inputs */
+.input-with-icon input {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    transition: all 0.25s ease !important;
+}
+
+.input-with-icon input:focus {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: #818cf8 !important;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25) !important;
+    outline: none !important;
+}
+
+/* Alert Items & Auth Error Styling */
 .alert-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: 10px;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 12px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.4;
-    transition: all 0.2s ease;
+    transition: all 0.25s ease;
 }
 
 .alert-item-danger {
-    background: rgba(239, 68, 68, 0.15) !important;
-    border: 1px solid rgba(239, 68, 68, 0.4) !important;
+    background: rgba(239, 68, 68, 0.16) !important;
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
     color: #fca5a5 !important;
-    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15) !important;
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2) !important;
 }
 
 .alert-item-danger i {
-    color: #ef4444 !important;
-    font-size: 16px;
+    color: #f87171 !important;
+    font-size: 17px;
 }
 
 .input-error {
     border-color: #ef4444 !important;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3) !important;
 }
 
 .input-with-icon.input-error input {
@@ -1604,4 +1719,5 @@ body.light-mode .dropdown-action-menu a:hover {
     30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
     40%, 60% { transform: translate3d(7px, 0, 0); }
 }
+
 
