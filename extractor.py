@@ -135,6 +135,10 @@ INVALID_CHALLAN_WORDS = {
     'OF', 'NO', 'NO.', 'NUMBER', 'NUM', 'REF', 'REF.', 'OTHER', 'MODES/TERMS'
 }
 
+PINCODE_PATTERN = re.compile(r'^\d{6}$')
+PHONE_PATTERN = re.compile(r'^\d{10}$')
+EWAY_PATTERN = re.compile(r'^\d{12}$')
+
 def is_valid_challan_number(val):
     if not val:
         return False
@@ -145,6 +149,9 @@ def is_valid_challan_number(val):
         return False
     # MUST contain at least one digit (0-9) to be a valid document number
     if not re.search(r'\d', clean):
+        return False
+    # Reject 6-digit pincodes (e.g. 390021), 10-digit phone numbers, and 12-digit Eway bill numbers
+    if PINCODE_PATTERN.match(clean) or PHONE_PATTERN.match(clean) or EWAY_PATTERN.match(clean):
         return False
     return True
 
@@ -230,17 +237,30 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         return None
 
     # 3. Token-scanning around "Delivery Note" / "Delivery Challan" / "Challan" keywords in OCR content
+    # Pass 1: Prioritize candidates containing slashes '/' or hyphens '-' with letters & digits (e.g. SKH/DC/26-27/116)
     for kw in ["delivery note", "delivery challan", "challan no", "challan number", "dc no", "dc number", "challan"]:
         kw_idx = norm_content.lower().find(kw)
         if kw_idx != -1:
-            # Take 300 characters window after keyword
             sub_text = norm_content[kw_idx + len(kw): kw_idx + len(kw) + 300]
             tokens = re.split(r'[\s,\t\n\r]+', sub_text)
             for tok in tokens:
                 clean_tok = tok.strip().rstrip('.,;:')
-                # Heal token if truncated (starts with / or -)
                 healed_tok = fix_truncated_challan_number(clean_tok, norm_content)
-                if is_valid_challan_number(healed_tok):
+                if healed_tok and ('/' in healed_tok or '-' in healed_tok) and is_valid_challan_number(healed_tok):
+                    return healed_tok
+                if ('/' in clean_tok or '-' in clean_tok) and is_valid_challan_number(clean_tok):
+                    return clean_tok
+
+    # Pass 2: Fallback to any valid candidate in window
+    for kw in ["delivery note", "delivery challan", "challan no", "challan number", "dc no", "dc number", "challan"]:
+        kw_idx = norm_content.lower().find(kw)
+        if kw_idx != -1:
+            sub_text = norm_content[kw_idx + len(kw): kw_idx + len(kw) + 300]
+            tokens = re.split(r'[\s,\t\n\r]+', sub_text)
+            for tok in tokens:
+                clean_tok = tok.strip().rstrip('.,;:')
+                healed_tok = fix_truncated_challan_number(clean_tok, norm_content)
+                if healed_tok and is_valid_challan_number(healed_tok):
                     return healed_tok
                 if is_valid_challan_number(clean_tok):
                     return clean_tok
