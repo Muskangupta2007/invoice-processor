@@ -62,6 +62,36 @@ body.light-mode {
     --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.05);
 }
 
+/* Pink Mode (Soft Blush Pink Theme) Variables */
+body.pink-mode {
+    --bg-app: #fdf2f8;
+    --bg-sidebar: #fce7f3;
+    --bg-card: rgba(255, 255, 255, 0.88);
+    --border-color: rgba(244, 114, 182, 0.28);
+    --text-primary: #831843;
+    --text-secondary: #9d174d;
+    
+    --primary: #ec4899;
+    --primary-hover: #db2777;
+    --primary-light: rgba(236, 72, 153, 0.15);
+    
+    --secondary: #ffffff;
+    --secondary-hover: #fbcfe8;
+    --secondary-border: rgba(244, 114, 182, 0.3);
+    
+    --success: #10b981;
+    --success-bg: rgba(16, 185, 129, 0.12);
+    --warning: #f59e0b;
+    --warning-bg: rgba(245, 158, 11, 0.12);
+    --danger: #e11d48;
+    --danger-bg: rgba(225, 29, 72, 0.12);
+    
+    --shadow-sm: 0 4px 10px rgba(244, 114, 182, 0.12);
+    --shadow-md: 0 10px 25px rgba(244, 114, 182, 0.18);
+    --shadow-lg: 0 20px 40px rgba(236, 72, 153, 0.2);
+}
+
+
 /* ==========================================================================
    RESET & BASE STYLES
    ========================================================================== */
@@ -1719,5 +1749,106 @@ body.light-mode .dropdown-action-menu a:hover {
     30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
     40%, 60% { transform: translate3d(7px, 0, 0); }
 }
+
+/* --- PINK MODE COMPONENT OVERRIDES --- */
+body.pink-mode .login-overlay {
+    background: radial-gradient(circle at center, #fce7f3 0%, #fbcfe8 100%) !important;
+}
+
+body.pink-mode .ambient-mesh .orb-1 {
+    background: radial-gradient(circle, rgba(244, 114, 182, 0.6) 0%, rgba(251, 113, 133, 0.25) 70%) !important;
+}
+
+body.pink-mode .ambient-mesh .orb-2 {
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, rgba(244, 114, 182, 0.2) 70%) !important;
+}
+
+body.pink-mode .ambient-mesh .orb-3 {
+    background: radial-gradient(circle, rgba(253, 164, 175, 0.45) 0%, rgba(244, 114, 182, 0.15) 70%) !important;
+}
+
+body.pink-mode .login-box {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border: 1px solid rgba(244, 114, 182, 0.35) !important;
+    box-shadow: 0 25px 50px rgba(236, 72, 153, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+body.pink-mode .login-logo h2 {
+    color: #831843 !important;
+}
+
+body.pink-mode .login-logo h2 span,
+body.pink-mode .login-logo i {
+    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #ec4899 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+body.pink-mode .login-subtitle {
+    color: #9d174d !important;
+}
+
+body.pink-mode .btn-primary {
+    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #ec4899 100%) !important;
+    box-shadow: 0 8px 24px rgba(225, 29, 72, 0.35) !important;
+}
+
+body.pink-mode .btn-primary:hover {
+    box-shadow: 0 12px 30px rgba(225, 29, 72, 0.5) !important;
+}
+
+body.pink-mode .input-with-icon input {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid rgba(244, 114, 182, 0.35) !important;
+    color: #831843 !important;
+}
+
+body.pink-mode .input-with-icon input:focus {
+    background: #ffffff !important;
+    border-color: #f43f5e !important;
+    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.22) !important;
+}
+
+body.pink-mode .sidebar {
+    background-color: #fce7f3;
+    border-right-color: rgba(244, 114, 182, 0.28);
+}
+
+body.pink-mode .menu-item {
+    color: #9d174d;
+}
+
+body.pink-mode .menu-item:hover,
+body.pink-mode .menu-item.active {
+    background-color: rgba(244, 114, 182, 0.22);
+    color: #831843;
+}
+
+body.pink-mode .glass-card {
+    background-color: rgba(255, 255, 255, 0.88);
+    border-color: rgba(244, 114, 182, 0.28);
+    box-shadow: 0 8px 20px rgba(244, 114, 182, 0.12);
+}
+
+body.pink-mode .main-header {
+    background-color: rgba(253, 242, 248, 0.92);
+    border-bottom-color: rgba(244, 114, 182, 0.28);
+}
+
+body.pink-mode table th {
+    background-color: #fbcfe8;
+    color: #831843;
+}
+
+body.pink-mode tr:hover td {
+    background-color: rgba(244, 114, 182, 0.12) !important;
+}
+
+body.pink-mode .modal-box {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(244, 114, 182, 0.38);
+    color: #831843;
+}
+
 
 

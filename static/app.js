@@ -567,11 +567,42 @@ document.addEventListener("DOMContentLoaded", () => {
     cardPendingEway.addEventListener("dblclick", () => triggerReportDownload("pending_eway"));
     if (cardWorkOrder) cardWorkOrder.addEventListener("dblclick", () => triggerReportDownload("work_order"));
 
-    themeToggle.addEventListener("click", () => {
-        document.body.classList.toggle("light-mode");
-        const isLight = document.body.classList.contains("light-mode");
-        themeToggle.innerHTML = isLight ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+    // --- 3-WAY THEME SYSTEM (Dark -> Light -> Soft Pink) ---
+    function applyTheme(themeName) {
+        document.body.classList.remove("dark-mode", "light-mode", "pink-mode");
+        
+        if (themeName === "light") {
+            document.body.classList.add("light-mode");
+            themeToggle.innerHTML = '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i>';
+            themeToggle.title = "Theme: Light (Click for Soft Pink Theme)";
+        } else if (themeName === "pink") {
+            document.body.classList.add("pink-mode");
+            themeToggle.innerHTML = '<i class="fa-solid fa-heart" style="color: #f43f5e;"></i>';
+            themeToggle.title = "Theme: Soft Pink (Click for Dark Theme)";
+        } else {
+            document.body.classList.add("dark-mode");
+            themeToggle.innerHTML = '<i class="fa-solid fa-moon" style="color: #818cf8;"></i>';
+            themeToggle.title = "Theme: Dark (Click for Light Theme)";
+        }
+        localStorage.setItem("invosync_theme", themeName);
         if (state.vendorChart) drawChart();
+    }
+
+    // Load saved theme preference on boot
+    const savedTheme = localStorage.getItem("invosync_theme") || "dark";
+    applyTheme(savedTheme);
+
+    themeToggle.addEventListener("click", () => {
+        if (document.body.classList.contains("dark-mode")) {
+            applyTheme("light");
+            showToast("Switched to Light Theme");
+        } else if (document.body.classList.contains("light-mode")) {
+            applyTheme("pink");
+            showToast("Switched to Soft Pink Theme 🌸");
+        } else {
+            applyTheme("dark");
+            showToast("Switched to Dark Theme");
+        }
     });
 
     function onLedgerFiltersChange() {
@@ -970,9 +1001,10 @@ document.addEventListener("DOMContentLoaded", () => {
             state.vendorChart.destroy();
         }
 
-        const isDark = !document.body.classList.contains("light-mode");
-        const textColor = isDark ? "#9ea4c0" : "#6b7280";
-        const gridColor = isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)";
+        const isDark = document.body.classList.contains("dark-mode");
+        const isPink = document.body.classList.contains("pink-mode");
+        const textColor = isPink ? "#9d174d" : (isDark ? "#9ea4c0" : "#6b7280");
+        const gridColor = isPink ? "rgba(244, 114, 182, 0.2)" : (isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)");
 
         const chartData = state.reports.by_company || [];
         const labels = chartData.map(item => item.company.length > 18 ? item.company.substring(0, 15) + "..." : item.company);
