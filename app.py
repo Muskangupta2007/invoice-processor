@@ -11,6 +11,9 @@ import extractor
 import teams
 
 import gzip
+import secrets
+import time
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 
@@ -21,21 +24,71 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db.init_db()
 
-# --- AUTHENTICATION DECORATOR ---
+# --- SECURITY & ACCOUNT LOCKOUT SYSTEM ---
+failed_attempts = {} # client_ip -> {'count': int, 'last_failed': float, 'lockout_until': float}
+
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_DURATION_SECONDS = 900 # 15 minutes lockout
+
+def get_client_ip():
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    return request.remote_addr or "127.0.0.1"
+
+def is_ip_locked_out(ip):
+    now = time.time()
+    record = failed_attempts.get(ip)
+    if not record:
+        return False, 0
+    if record.get('lockout_until', 0) > now:
+        remaining_sec = int(record['lockout_until'] - now)
+        remaining_min = max(1, (remaining_sec + 59) // 60)
+        return True, remaining_min
+    return False, 0
+
+def record_failed_attempt(ip):
+    now = time.time()
+    record = failed_attempts.setdefault(ip, {'count': 0, 'last_failed': 0, 'lockout_until': 0})
+    if record['lockout_until'] > 0 and record['lockout_until'] <= now:
+        record['count'] = 0
+        record['lockout_until'] = 0
+
+    record['count'] += 1
+    record['last_failed'] = now
+
+    if record['count'] >= MAX_FAILED_ATTEMPTS:
+        record['lockout_until'] = now + LOCKOUT_DURATION_SECONDS
+        print(f"[SECURITY ALERT] IP {ip} LOCKED OUT for 15 mins after {record['count']} failed attempts.")
+    elif record['count'] >= 3:
+        time.sleep(1.5)
+
+def reset_failed_attempts(ip):
+    if ip in failed_attempts:
+        del failed_attempts[ip]
+
+# --- AUTHENTICATION DECORATORS ---
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Read from Authorization header or from request query args (for standard link downloads)
         token = request.headers.get("Authorization")
         if token and token.startswith("Bearer "):
             token = token.split(" ")[1]
         else:
             token = request.args.get("token")
             
-        expected_token = db.get_setting("admin_password", "invosync2026")
-        if not token or token != expected_token:
-            return jsonify({"status": "error", "message": "Unauthorized access. Please login."}), 401
-        return f(*args, **kwargs)
+        if not token:
+            return jsonify({"status": "error", "message": "Unauthorized access. Token required."}), 401
+
+        active_token = db.get_setting("active_session_token", "")
+        stored_password_hash = db.get_setting("admin_password", "invosync2026")
+
+        if active_token and token == active_token:
+            return f(*args, **kwargs)
+
+        if db.verify_password(stored_password_hash, token, setting_key_to_upgrade="admin_password"):
+            return f(*args, **kwargs)
+
+        return jsonify({"status": "error", "message": "Unauthorized access. Please login."}), 401
     return decorated
 
 def requires_settings_auth(f):
@@ -47,10 +100,20 @@ def requires_settings_auth(f):
         else:
             token = request.args.get("token")
             
-        expected_token = db.get_setting("settings_password", "settings2026")
-        if not token or token != expected_token:
-            return jsonify({"status": "error", "message": "Incorrect Settings Lock password."}), 401
-        return f(*args, **kwargs)
+        if not token:
+            return jsonify({"status": "error", "message": "Unauthorized access."}), 401
+
+        settings_pass = db.get_setting("settings_password", "settings2026")
+        admin_pass = db.get_setting("admin_password", "invosync2026")
+        active_token = db.get_setting("active_session_token", "")
+
+        if active_token and token == active_token:
+            return f(*args, **kwargs)
+
+        if db.verify_password(settings_pass, token, setting_key_to_upgrade="settings_password") or db.verify_password(admin_pass, token, setting_key_to_upgrade="admin_password"):
+            return f(*args, **kwargs)
+
+        return jsonify({"status": "error", "message": "Incorrect Settings Lock password."}), 401
     return decorated
 
 @app.route('/')
@@ -60,14 +123,12 @@ def index():
 @app.after_request
 def add_header(response):
     path = request.path.lower()
-    # 1. Cache static media assets (images/fonts) for 24 hours, but revalidate JS/CSS
     if any(path.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2']):
         response.headers["Cache-Control"] = "public, max-age=86400"
     else:
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
 
-    # 2. Gzip compression for API JSON and static responses
     accept_encoding = request.headers.get('Accept-Encoding', '')
     if (
         'gzip' in accept_encoding.lower()
@@ -86,25 +147,43 @@ def add_header(response):
 
     return response
 
-# --- AUTH ENDPOINTS ---
+# --- AUTH ENDPOINTS WITH ACCOUNT LOCKOUT & SECURE HASHES ---
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    ip = get_client_ip()
+    is_locked, remaining_mins = is_ip_locked_out(ip)
+    if is_locked:
+        return jsonify({
+            "status": "error",
+            "message": f"Account temporarily locked due to multiple failed login attempts. Please try again in {remaining_mins} minute(s)."
+        }), 429
+
     data = request.json or {}
-    username = data.get("username")
-    password = data.get("password")
-    
+    username = str(data.get("username") or "").strip()
+    password = str(data.get("password") or "").strip()
+
     expected_username = db.get_setting("admin_username", "admin")
-    expected_password = db.get_setting("admin_password", "invosync2026")
-    
-    if username == expected_username and password == expected_password:
+    stored_password_hash = db.get_setting("admin_password", "invosync2026")
+
+    if username == expected_username and db.verify_password(stored_password_hash, password, setting_key_to_upgrade="admin_password"):
+        reset_failed_attempts(ip)
+        session_token = secrets.token_hex(32)
+        db.save_setting("active_session_token", session_token)
         return jsonify({
             "status": "success",
             "message": "Login successful.",
-            "token": expected_password
+            "token": session_token
         })
     else:
-        return jsonify({"status": "error", "message": "Invalid username or password."}), 401
+        record_failed_attempt(ip)
+        current_attempts = failed_attempts.get(ip, {}).get('count', 0)
+        remaining_attempts = max(0, MAX_FAILED_ATTEMPTS - current_attempts)
+        if remaining_attempts == 0:
+            msg = "Account temporarily locked for 15 minutes due to repeated failed login attempts."
+        else:
+            msg = f"Invalid username or password. {remaining_attempts} attempt(s) remaining before account lockout."
+        return jsonify({"status": "error", "message": msg}), 401
 
 # --- SETTINGS ENDPOINTS ---
 
@@ -180,16 +259,18 @@ def save_settings():
     current_pass = data.get("current_password")
     
     if admin_user or admin_pass or settings_lock_pass:
-        expected_pass = db.get_setting("admin_password", "invosync2026")
-        if not current_pass or current_pass != expected_pass:
+        stored_pass = db.get_setting("admin_password", "invosync2026")
+        if not current_pass or not db.verify_password(stored_pass, current_pass, setting_key_to_upgrade="admin_password"):
             return jsonify({"status": "error", "message": "Verification failed: Incorrect current password. Settings not saved."}), 400
             
         if admin_user:
             db.save_setting("admin_username", admin_user.strip())
         if admin_pass:
-            db.save_setting("admin_password", admin_pass.strip())
+            hashed_admin = generate_password_hash(admin_pass.strip())
+            db.save_setting("admin_password", hashed_admin)
         if settings_lock_pass:
-            db.save_setting("settings_password", settings_lock_pass.strip())
+            hashed_lock = generate_password_hash(settings_lock_pass.strip())
+            db.save_setting("settings_password", hashed_lock)
             
     if azure_endpoint is not None:
         db.save_setting("azure_endpoint", azure_endpoint.strip())

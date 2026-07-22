@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 import threading
 import time
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # For PostgreSQL support
 try:
@@ -275,6 +276,27 @@ def save_setting(key, value):
     """, (key, value))
     conn.commit()
     conn.close()
+
+def verify_password(stored_val, candidate_val, setting_key_to_upgrade=None):
+    if not stored_val or not candidate_val:
+        return False
+    stored_str = str(stored_val).strip()
+    candidate_str = str(candidate_val).strip()
+
+    if stored_str.startswith("scrypt:") or stored_str.startswith("pbkdf2:") or stored_str.startswith("sha256$"):
+        return check_password_hash(stored_str, candidate_str)
+
+    # Plain text check & automatic migration to secure hash
+    if stored_str == candidate_str:
+        if setting_key_to_upgrade:
+            try:
+                new_hash = generate_password_hash(candidate_str)
+                save_setting(setting_key_to_upgrade, new_hash)
+                print(f"[SECURITY] Successfully upgraded setting '{setting_key_to_upgrade}' to secure password hash.")
+            except Exception as ex:
+                print(f"[SECURITY] Warning during hash upgrade: {ex}")
+        return True
+    return False
 
 def get_documents(company=None, doc_type=None):
     conn = get_db_connection()
