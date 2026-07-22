@@ -128,34 +128,54 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
                 
     return None
 
+INVALID_CHALLAN_WORDS = {
+    'MODE/TERMS', 'MODE', 'TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER',
+    'INVOICE', 'DATE', 'DISPATCH', 'DESTINATION', 'BUYER', 'SUPPLIER',
+    'DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'BILL', 'DETAILS', 'TERMS OF DELIVERY'
+}
+
+def is_valid_challan_number(val):
+    if not val:
+        return False
+    clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper()
+    if not clean or clean in INVALID_CHALLAN_WORDS:
+        return False
+    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/']):
+        return False
+    return True
+
 def fix_truncated_challan_number(val_str, content):
     """
     Heals truncated Delivery Note / Delivery Challan numbers (e.g. '/26-27/116')
     by searching the raw OCR content for the full string with its prefix (e.g. 'SKH/DC/26-27/116').
     """
     if not val_str:
-        return val_str
+        return ""
         
-    clean_val = str(val_str).strip()
+    # Normalize unicode dashes (en-dash \u2013, em-dash \u2014, minus \u2212) to standard ASCII hyphen
+    clean_val = str(val_str).replace('–', '-').replace('—', '-').replace('−', '-').strip()
+    norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
     
     # If the value starts with a slash or hyphen (e.g. "/26-27/116"), it's missing its prefix!
     if clean_val.startswith('/') or clean_val.startswith('-'):
-        if content:
-            # Search content for any word ending with this string that has an alphanumeric prefix (e.g. SKH/DC/26-27/116)
-            escaped_tail = re.escape(clean_val)
-            match = re.search(r'\b([a-zA-Z0-9]+[a-zA-Z0-9/\-_]*' + escaped_tail + r')', content)
-            if match:
-                return match.group(1).strip()
-                
-            # Search near 'Delivery Note' / 'Challan' keywords in content
-            match_near = re.search(r'(?i)(?:delivery\s*note|delivery\s*challan|challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})', content)
-            if match_near:
-                return match_near.group(1).strip()
-
-        # If no prefix found in content, strip leading slashes/hyphens
+        if norm_content:
+            # Build flexible regex matching tail digits in norm_content (e.g. 26-27/116 -> SKH/DC/26-27/116)
+            tail_digits = re.findall(r'[a-zA-Z0-9]+', clean_val)
+            if tail_digits:
+                flex_pattern = r'[\s/\-_]*' + r'[\s/\-_]*'.join(re.escape(d) for d in tail_digits)
+                match = re.search(r'\b([a-zA-Z0-9]+[a-zA-Z0-9/\-_]*' + flex_pattern + r')', norm_content)
+                if match:
+                    found = match.group(1).strip()
+                    if is_valid_challan_number(found):
+                        return found
+                        
+        # Strip leading slash/hyphen if no prefix match found in content
         clean_val = re.sub(r'^[/:#-]+\s*', '', clean_val).strip()
 
-    return clean_val
+    if is_valid_challan_number(clean_val):
+        return clean_val
+        
+    return ""
 
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
@@ -177,7 +197,7 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         val_text = str(kv.get("value", {}).get("content", "")).strip()
         if any(k in key_text for k in target_keys) and val_text:
             clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
-            if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+            if is_valid_challan_number(clean_val):
                 extracted_cand = clean_val
                 break
 
@@ -191,20 +211,20 @@ def extract_challan_number(result_json_or_content, raw_content=None):
                 if field_key in fields:
                     f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
                     clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
-                    if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                    if is_valid_challan_number(clean_val):
                         extracted_cand = clean_val
                         break
 
-    # If candidate found (or if we need OCR fallback), pass through truncation healer
+    # If candidate found, pass through truncation healer
     if extracted_cand:
         healed = fix_truncated_challan_number(extracted_cand, content)
-        if healed and not healed.startswith('/') and not healed.startswith('-'):
+        if healed and is_valid_challan_number(healed):
             return healed
 
     if not content:
-        return extracted_cand
+        return extracted_cand if is_valid_challan_number(extracted_cand) else None
         
-    normalized_content = " ".join(str(content).split())
+    normalized_content = " ".join(str(content).replace('–', '-').replace('—', '-').replace('−', '-').split())
     
     # 3. Regex matching Delivery Note / Delivery Challan No patterns in OCR content
     patterns = [
@@ -217,10 +237,10 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         match = re.search(pat, normalized_content)
         if match:
             extracted_val = match.group(1).strip().rstrip('.,;:')
-            if extracted_val and extracted_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'DATE', 'BILL']:
+            if is_valid_challan_number(extracted_val):
                 return extracted_val
                 
-    return extracted_cand
+    return extracted_cand if is_valid_challan_number(extracted_cand) else None
 
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
