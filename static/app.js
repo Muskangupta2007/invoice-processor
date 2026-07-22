@@ -1938,6 +1938,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("edit-asn-no-group").style.display = "block";
                 document.getElementById("edit-asn-no").value = doc.asn_no || "";
             }
+            if (document.getElementById("edit-challan-no-group")) {
+                document.getElementById("edit-challan-no-group").style.display = "block";
+                document.getElementById("edit-challan-no").value = doc.challan_no || "DIRECT INVOICE";
+            }
         }
         
         editModal.style.display = "flex";
@@ -1969,6 +1973,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (document.getElementById("edit-asn-no")) {
                 updatedData.asn_no = document.getElementById("edit-asn-no").value.trim();
             }
+            if (document.getElementById("edit-challan-no")) {
+                updatedData.challan_no = document.getElementById("edit-challan-no").value.trim() || "DIRECT INVOICE";
+            }
 
             // Optimistic local update
             const targetInv = state.invoices.find(inv => String(inv.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
@@ -1979,6 +1986,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 targetInv.remarks = editRemarks.value;
                 if (updatedData.asn_no !== undefined) {
                     targetInv.asn_no = updatedData.asn_no;
+                }
+                if (updatedData.challan_no !== undefined) {
+                    targetInv.challan_no = updatedData.challan_no;
                 }
                 const ewayInput = String(updatedData.eway_bill || '').trim();
                 if (ewayInput && !['PENDING', 'N/A', 'DONE'].includes(ewayInput.toUpperCase())) {
