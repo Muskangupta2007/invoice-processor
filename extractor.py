@@ -185,6 +185,7 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
 
+    norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
     extracted_cand = None
 
     # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
@@ -197,7 +198,7 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         val_text = str(kv.get("value", {}).get("content", "")).strip()
         if any(k in key_text for k in target_keys) and val_text:
             clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
-            if is_valid_challan_number(clean_val):
+            if is_valid_challan_number(clean_val) or clean_val.startswith('/') or clean_val.startswith('-'):
                 extracted_cand = clean_val
                 break
 
@@ -211,36 +212,36 @@ def extract_challan_number(result_json_or_content, raw_content=None):
                 if field_key in fields:
                     f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
                     clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
-                    if is_valid_challan_number(clean_val):
+                    if is_valid_challan_number(clean_val) or clean_val.startswith('/') or clean_val.startswith('-'):
                         extracted_cand = clean_val
                         break
 
-    # If candidate found, pass through truncation healer
+    # If candidate found (e.g. '/26-27/116' or 'SKH/DC/26-27/116'), heal truncation using norm_content
     if extracted_cand:
-        healed = fix_truncated_challan_number(extracted_cand, content)
+        healed = fix_truncated_challan_number(extracted_cand, norm_content)
         if healed and is_valid_challan_number(healed):
             return healed
 
-    if not content:
-        return extracted_cand if is_valid_challan_number(extracted_cand) else None
-        
-    normalized_content = " ".join(str(content).replace('–', '-').replace('—', '-').replace('−', '-').split())
-    
-    # 3. Regex matching Delivery Note / Delivery Challan No patterns in OCR content
-    patterns = [
-        r'(?i)(?:delivery\s*note|delivery\s*challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})',
-        r'(?i)\bchallan\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})',
-        r'(?i)\bd\.?c\.?\s*(?:no|number|num)\s*[\.:#-]+\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})'
-    ]
-    
-    for pat in patterns:
-        match = re.search(pat, normalized_content)
-        if match:
-            extracted_val = match.group(1).strip().rstrip('.,;:')
-            if is_valid_challan_number(extracted_val):
-                return extracted_val
-                
-    return extracted_cand if is_valid_challan_number(extracted_cand) else None
+    if not norm_content:
+        return None
+
+    # 3. Token-scanning around "Delivery Note" / "Delivery Challan" / "Challan" keywords in OCR content
+    for kw in ["delivery note", "delivery challan", "challan no", "challan number", "dc no", "dc number", "challan"]:
+        kw_idx = norm_content.lower().find(kw)
+        if kw_idx != -1:
+            # Take 300 characters window after keyword
+            sub_text = norm_content[kw_idx + len(kw): kw_idx + len(kw) + 300]
+            tokens = re.split(r'[\s,\t\n\r]+', sub_text)
+            for tok in tokens:
+                clean_tok = tok.strip().rstrip('.,;:')
+                # Heal token if truncated (starts with / or -)
+                healed_tok = fix_truncated_challan_number(clean_tok, norm_content)
+                if is_valid_challan_number(healed_tok):
+                    return healed_tok
+                if is_valid_challan_number(clean_tok):
+                    return clean_tok
+
+    return None
 
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
