@@ -230,11 +230,11 @@ def init_db():
         except Exception:
             pass
     
-    # Clean up hardcoded mock ASN numbers and invalid eway_bill_no='DONE' values from database
+    # Clean up hardcoded mock ASN numbers and invalid eway_bill_no non-number values from database
     try:
         cursor.execute("UPDATE documents SET asn_no = '' WHERE asn_no = 'ASN/26/000797'")
         cursor.execute("UPDATE documents SET mode_of_transp = '' WHERE mode_of_transp = 'Tempo'")
-        cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) = 'DONE'")
+        cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")
@@ -355,7 +355,7 @@ def add_document(data):
         eway_no = str(data.get('eway_bill_no', '')).strip()
         
         # If user passed custom eway number in eway_bill field
-        if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+        if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', 'NONE', 'NULL', '-']:
             if not eway_no:
                 eway_no = eway_status
             eway_status = "DONE"
@@ -365,7 +365,7 @@ def add_document(data):
         except (ValueError, TypeError):
             amt = 0.0
             
-        if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+        if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', 'NONE', 'NULL', '-']:
             data['eway_bill_no'] = eway_no
             data['eway_bill'] = "DONE"
         else:

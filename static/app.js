@@ -1375,7 +1375,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 cellHtmlList.push(`<td style="text-align: left; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inv.item_description || ''}">${inv.item_description || ''}</td>`);
                 cellHtmlList.push(`<td class="col-amount">${parseFloat(inv.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>`);
                 cellHtmlList.push(`<td>${inv.eway_bill || ''}</td>`);
-                cellHtmlList.push(`<td>${inv.eway_bill_no || ''}</td>`);
+                const rawEwayNo = String(inv.eway_bill_no || '').trim();
+                const displayEwayNo = ['PENDING', 'N/A', 'DONE', 'NONE', 'NULL', '-'].includes(rawEwayNo.toUpperCase()) ? '' : rawEwayNo;
+                cellHtmlList.push(`<td>${displayEwayNo}</td>`);
                 cellHtmlList.push(`<td>${inv.asn_no || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.mode_of_transp || ''}</td>`);
                 cellHtmlList.push(`<td>${inv.dock_code || ''}</td>`);

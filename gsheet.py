@@ -332,7 +332,7 @@ def sync_from_google_sheet(company):
             eway_status = str(inv_db.get('eway_bill', '')).strip()
             eway_no = str(inv_db.get('eway_bill_no', '')).strip()
             
-            if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+            if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', 'NONE', 'NULL', '-']:
                 if not eway_no:
                     eway_no = eway_status
                 eway_status = "DONE"
@@ -342,7 +342,7 @@ def sync_from_google_sheet(company):
             except (ValueError, TypeError):
                 amt = 0.0
                 
-            if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+            if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', 'NONE', 'NULL', '-']:
                 inv_db['eway_bill_no'] = eway_no
                 inv_db['eway_bill'] = "DONE"
             else:
