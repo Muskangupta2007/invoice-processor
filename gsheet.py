@@ -347,9 +347,7 @@ def sync_from_google_sheet(company):
                 inv_db['eway_bill'] = "DONE"
             else:
                 inv_db['eway_bill_no'] = ""
-                if eway_status.upper() == "DONE":
-                    inv_db['eway_bill'] = "DONE"
-                elif amt < 50000:
+                if amt < 50000:
                     inv_db['eway_bill'] = "N/A"
                 else:
                     inv_db['eway_bill'] = "PENDING"
