@@ -169,21 +169,38 @@ def check_excel_writable(company):
             except Exception:
                 pass
 
+def clean_challan_no(val, doc_no=None):
+    if not val:
+        return "DIRECT INVOICE"
+    s_val = str(val).strip()
+    
+    # Specific known fix for SKH/26-27/224 if it had 'of' or empty
+    if doc_no and 'SKH/26-27/224' in str(doc_no).upper() and s_val.lower() in ['of', 'mode/terms', '', 'direct invoice']:
+        return "SKH/DC/26-27/116"
+
+    upper_val = s_val.upper()
+    if upper_val in ['OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER', 'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'N/A', 'NONE', 'NULL', '-']:
+        return "DIRECT INVOICE"
+    if any(upper_val.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/']):
+        return "DIRECT INVOICE"
+        
+    if not re.search(r'\d', s_val) and upper_val != "DIRECT INVOICE":
+        return "DIRECT INVOICE"
+        
+    return s_val
+
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("DROP TABLE IF EXISTS invoices")
-    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS documents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
             company TEXT NOT NULL,
-            doc_type TEXT NOT NULL, /* 'Invoice' or 'Challan' */
+            doc_type TEXT NOT NULL,
             doc_no TEXT NOT NULL,
             doc_date TEXT,
-            invoice_no TEXT, /* Associated Invoice for Challan */
-            challan_no TEXT, /* Associated Challan for Invoice */
+            invoice_no TEXT,
+            challan_no TEXT,
             bill_to TEXT,
             po_wo_no TEXT,
             item_description TEXT,
@@ -199,44 +216,57 @@ def init_db():
             mrn_date TEXT,
             mrn_no TEXT,
             remarks TEXT,
-            
-            /* Delivery Challan Custom fields */
             deliver_qty TEXT,
             uom TEXT,
             unit_price TEXT,
             po_status TEXT,
             po_qty TEXT,
-            
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(company, doc_type, doc_no)
+            PRIMARY KEY (company, doc_type, doc_no)
         )
     """)
     
-    # Create high-performance query indexes
-    try:
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_company_type ON documents (company, doc_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_mrn_status ON documents (mrn_status)")
-    except Exception as idx_err:
-        print(f"[DB Init] Warning creating indexes: {idx_err}")
+    # Table for tracking user-deleted documents to permanently prevent background sync from resurrecting them
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deleted_documents (
+            company TEXT NOT NULL,
+            doc_type TEXT NOT NULL,
+            doc_no TEXT NOT NULL,
+            deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (company, doc_type, doc_no)
+        )
+    """)
     
-    # Run dynamic schema migration to add eway_bill_no column
-    try:
-        conn.commit()
-        cursor.execute("ALTER TABLE documents ADD COLUMN eway_bill_no TEXT")
-        conn.commit()
-    except Exception:
+    # Perform schema migrations for new columns
+    for col, col_type in [
+        ('eway_bill_no', 'TEXT'),
+        ('asn_no', 'TEXT'),
+        ('mode_of_transp', 'TEXT'),
+        ('dock_code', 'TEXT'),
+        ('delivery_date', 'TEXT'),
+        ('delivery_site', 'TEXT'),
+        ('mrn_status', "TEXT DEFAULT 'PENDING'"),
+        ('mrn_date', 'TEXT'),
+        ('mrn_no', 'TEXT'),
+        ('remarks', 'TEXT'),
+        ('deliver_qty', 'TEXT'),
+        ('uom', 'TEXT'),
+        ('unit_price', 'TEXT'),
+        ('po_status', 'TEXT'),
+        ('po_qty', 'TEXT')
+    ]:
         try:
-            conn.rollback()
+            cursor.execute(f"ALTER TABLE documents ADD COLUMN {col} {col_type}")
         except Exception:
             pass
     
-    # Clean up hardcoded mock ASN numbers and enforce strict E-Way Bill status rules in database
+    # Clean up hardcoded mock ASN numbers and enforce strict E-Way Bill and Challan No status rules in database
     try:
         cursor.execute("UPDATE documents SET asn_no = '' WHERE asn_no = 'ASN/26/000797'")
         cursor.execute("UPDATE documents SET mode_of_transp = '' WHERE mode_of_transp = 'Tempo'")
         cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
         cursor.execute("UPDATE documents SET eway_bill = 'N/A' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) < 50000")
         cursor.execute("UPDATE documents SET eway_bill = 'PENDING' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) >= 50000")
+        cursor.execute("UPDATE documents SET challan_no = 'SKH/DC/26-27/116' WHERE doc_no = 'SKH/26-27/224'")
         cursor.execute("UPDATE documents SET challan_no = 'DIRECT INVOICE' WHERE UPPER(TRIM(challan_no)) IN ('OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.') OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%'")
         conn.commit()
     except Exception as clean_err:
@@ -347,6 +377,13 @@ def add_document(data):
     if not company or not doc_type:
         return False
         
+    # Unmark deleted document flag if user is explicitly re-adding/uploading it
+    if data.get('doc_no'):
+        unmark_deleted_document(company, doc_type, data.get('doc_no'))
+        
+    # Clean Challan No
+    data['challan_no'] = clean_challan_no(data.get('challan_no'), data.get('doc_no'))
+
     # Clean date fields to remove time components
     for field in ['doc_date', 'delivery_date', 'mrn_date']:
         if field in data:
@@ -511,13 +548,48 @@ def update_document(company, doc_type, doc_no, data):
         return True
     return False
 
+def is_document_deleted(company, doc_type, doc_no):
+    if not company or not doc_type or not doc_no:
+        return False
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT 1 FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
+        (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+def unmark_deleted_document(company, doc_type, doc_no):
+    if not company or not doc_type or not doc_no:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
+        (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
+    )
+    conn.commit()
+    conn.close()
+
 def delete_document(company, doc_type, doc_no):
     check_excel_writable(company)
     
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # Record in deleted_documents table to permanently block background sync resurrects
+    try:
+        cursor.execute(
+            "INSERT OR REPLACE INTO deleted_documents (company, doc_type, doc_no) VALUES (?, ?, ?)",
+            (company, doc_type, doc_no)
+        )
+    except Exception as e:
+        print(f"[DB Delete] Error adding to deleted_documents: {e}")
+
     cursor.execute(
-        "DELETE FROM documents WHERE company = ? AND doc_type = ? AND doc_no = ?",
+        "DELETE FROM documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
         (company, doc_type, doc_no)
     )
     conn.commit()

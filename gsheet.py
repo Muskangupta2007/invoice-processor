@@ -306,7 +306,7 @@ def sync_from_google_sheet(company):
         
         for inv_row in invoices_list:
             doc_no = str(inv_row.get('Invoice No') or '').strip()
-            if not doc_no:
+            if not doc_no or db.is_document_deleted(company, 'Invoice', doc_no):
                 continue
                 
             inv_db = {}
@@ -318,6 +318,7 @@ def sync_from_google_sheet(company):
                 
             inv_db['company'] = company
             inv_db['doc_type'] = 'Invoice'
+            inv_db['challan_no'] = db.clean_challan_no(inv_db.get('challan_no'), doc_no)
             
             # Clean fields
             if inv_db.get('amount') is not None:
@@ -359,7 +360,7 @@ def sync_from_google_sheet(company):
         
         for chal_row in challans_list:
             doc_no = str(chal_row.get('Delivery Challan No') or '').strip()
-            if not doc_no:
+            if not doc_no or db.is_document_deleted(company, 'Challan', doc_no):
                 continue
                 
             if doc_no not in grouped_challans:
