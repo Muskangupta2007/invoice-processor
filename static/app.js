@@ -1591,6 +1591,18 @@ document.addEventListener("DOMContentLoaded", () => {
                         <textarea id="review-${key}" rows="3" placeholder="Not found">${val}</textarea>
                     </div>
                 `;
+            } else if (["doc_date", "delivery_date", "mrn_date"].includes(key)) {
+                reviewFieldsContainer.innerHTML += `
+                    <div class="form-group">
+                        <label for="review-${key}">${label}</label>
+                        <div class="date-picker-input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                            <input type="text" id="review-${key}" class="review-date-picker" value="${val}" placeholder="Select Date (e.g. 29 June 2026)" style="width: 100%; padding-right: 38px; cursor: pointer;">
+                            <button type="button" id="btn-cal-review-${key}" title="Open Calendar Picker" style="position: absolute; right: 8px; background: none; border: none; color: var(--primary); cursor: pointer; padding: 6px 8px; font-size: 15px; display: flex; align-items: center; justify-content: center; z-index: 2;">
+                                <i class="fa-solid fa-calendar-days"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
             } else {
                 const isAmt = (key === "amount");
                 const inputType = isAmt ? "number" : "text";
@@ -1603,6 +1615,35 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                 `;
             }
+        }
+
+        // Initialize Flatpickr calendars for date fields in Extracted Metadata Review Form
+        if (typeof flatpickr !== "undefined") {
+            const isDarkOrPink = document.body.classList.contains("dark-mode") || document.body.classList.contains("pink-mode");
+            ["doc_date", "delivery_date", "mrn_date"].forEach(dateKey => {
+                const dateInput = document.getElementById(`review-${dateKey}`);
+                const dateBtn = document.getElementById(`btn-cal-review-${dateKey}`);
+                if (dateInput) {
+                    const initialVal = docData[dateKey] !== null && docData[dateKey] !== undefined ? String(docData[dateKey]) : "";
+                    const fp = flatpickr(dateInput, {
+                        dateFormat: "d F Y",
+                        allowInput: true,
+                        theme: isDarkOrPink ? "dark" : "light",
+                        onReady: function(selectedDates, dateStr, instance) {
+                            if (dateBtn) {
+                                dateBtn.addEventListener("click", (e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    instance.toggle();
+                                });
+                            }
+                        }
+                    });
+                    if (initialVal) {
+                        fp.setDate(initialVal, false);
+                    }
+                }
+            });
         }
         
         uploadReview.style.display = "block";
