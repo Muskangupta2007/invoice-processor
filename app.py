@@ -468,18 +468,6 @@ def upload_file():
             
         existing_doc = db.get_document_by_no(company, doc_type, doc_no)
         if existing_doc:
-            new_challan = extracted_data.get("challan_no", "")
-            old_challan = str(existing_doc.get("challan_no") or "").strip()
-            
-            if new_challan and new_challan != "DIRECT INVOICE":
-                existing_doc["challan_no"] = new_challan
-                db.update_document(company, doc_type, doc_no, {"challan_no": new_challan})
-            elif old_challan in ["390021", "of", "Mode/Terms"] or (re.match(r'^\d{6}$', old_challan)):
-                fixed_challan = "SKH/DC/26-27/116" if "SKH/26-27/224" in str(doc_no).upper() else "DIRECT INVOICE"
-                existing_doc["challan_no"] = fixed_challan
-                extracted_data["challan_no"] = fixed_challan
-                db.update_document(company, doc_type, doc_no, {"challan_no": fixed_challan})
-
             return jsonify({
                 "status": "duplicate",
                 "message": f"{doc_type} number '{doc_no}' already exists for company '{company}'.",
@@ -488,31 +476,10 @@ def upload_file():
                 "data": extracted_data
             })
             
-        success = db.add_document(extracted_data)
-        if not success:
-            return jsonify({"status": "error", "message": "Failed to write document to database."}), 500
-            
-        # Send Teams notifications
-        webhook_url = db.get_setting("teams_webhook_url")
-        if webhook_url:
-            notify_payload = extracted_data.copy()
-            notify_payload["processed_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            notify_payload["invoice_no"] = notify_payload["doc_no"]
-            notify_payload["invoice_date"] = notify_payload["doc_date"]
-            notify_payload["invoice_amt"] = notify_payload["amount"]
-            
-            teams.send_teams_notification(webhook_url, "new_invoice", notify_payload)
-            
-            seq_check = db.check_invoice_sequence(company, doc_type)
-            if seq_check["status"] == "warning":
-                teams.send_teams_notification(webhook_url, "sequence_gap", seq_check)
-                
-            if notify_payload.get("mrn_status") == "PENDING" or not notify_payload.get("mrn_no"):
-                teams.send_teams_notification(webhook_url, "missing_mrn", notify_payload)
-                
+        # Do NOT save to database on initial OCR extraction - return data for user review
         return jsonify({
             "status": "success",
-            "message": "Document successfully uploaded and processed.",
+            "message": "Document extracted successfully for review.",
             "data": extracted_data
         })
         
@@ -536,15 +503,20 @@ def confirm_upload():
     if action == "skip":
         return jsonify({"status": "skipped", "message": "Document upload skipped by user."})
         
-    if action == "replace":
-        success = db.update_document(company, doc_type, doc_no, doc_data)
+    if action in ["save", "replace"]:
+        existing_doc = db.get_document_by_no(company, doc_type, doc_no)
+        if existing_doc:
+            success = db.update_document(company, doc_type, doc_no, doc_data)
+        else:
+            success = db.add_document(doc_data)
+            
         if not success:
-            return jsonify({"status": "error", "message": "Failed to update the existing document."}), 500
+            return jsonify({"status": "error", "message": "Failed to save the document to database."}), 500
             
         webhook_url = db.get_setting("teams_webhook_url")
         if webhook_url:
             notify_payload = doc_data.copy()
-            notify_payload["processed_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (Replaced)"
+            notify_payload["processed_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             notify_payload["invoice_no"] = notify_payload["doc_no"]
             notify_payload["invoice_date"] = notify_payload["doc_date"]
             notify_payload["invoice_amt"] = notify_payload["amount"]
@@ -553,7 +525,7 @@ def confirm_upload():
             if notify_payload.get("mrn_status") == "PENDING" or not notify_payload.get("mrn_no"):
                 teams.send_teams_notification(webhook_url, "missing_mrn", notify_payload)
                 
-        return jsonify({"status": "success", "message": f"{doc_type} '{doc_no}' successfully replaced."})
+        return jsonify({"status": "success", "message": f"{doc_type} '{doc_no}' successfully saved and locked."})
         
     return jsonify({"status": "error", "message": f"Invalid action '{action}'."}), 400
 
