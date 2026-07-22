@@ -130,17 +130,21 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
 
 INVALID_CHALLAN_WORDS = {
     'MODE/TERMS', 'MODE', 'TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER',
-    'INVOICE', 'DATE', 'DISPATCH', 'DESTINATION', 'BUYER', 'SUPPLIER',
-    'DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'BILL', 'DETAILS', 'TERMS OF DELIVERY'
+    'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'DESTINATION', 'BUYER', 'SUPPLIER',
+    'DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'BILL', 'DETAILS', 'TERMS OF DELIVERY',
+    'OF', 'NO', 'NO.', 'NUMBER', 'NUM', 'REF', 'REF.', 'OTHER', 'MODES/TERMS'
 }
 
 def is_valid_challan_number(val):
     if not val:
         return False
-    clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper()
-    if not clean or clean in INVALID_CHALLAN_WORDS:
+    clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper().rstrip('.,;:')
+    if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
-    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/']):
+    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/']):
+        return False
+    # MUST contain at least one digit (0-9) to be a valid document number
+    if not re.search(r'\d', clean):
         return False
     return True
 
