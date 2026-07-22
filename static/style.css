@@ -91,6 +91,64 @@ body.pink-mode {
     --shadow-lg: 0 25px 50px rgba(236, 72, 153, 0.25);
 }
 
+/* Brown Mode (Warm Espresso & Caramel Theme) Variables */
+body.brown-mode {
+    --bg-app: #f7f1ec;
+    --bg-sidebar: #ebdcd0;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --border-color: rgba(160, 82, 45, 0.3);
+    --text-primary: #4a2e1b;
+    --text-secondary: #7c5237;
+    
+    --primary: #b87333;
+    --primary-hover: #8b5e3c;
+    --primary-light: rgba(184, 115, 51, 0.18);
+    
+    --secondary: #ffffff;
+    --secondary-hover: #e6d0c0;
+    --secondary-border: rgba(160, 82, 45, 0.35);
+    
+    --success: #2e7d32;
+    --success-bg: rgba(46, 125, 50, 0.12);
+    --warning: #d97706;
+    --warning-bg: rgba(217, 119, 6, 0.12);
+    --danger: #c62828;
+    --danger-bg: rgba(198, 40, 40, 0.12);
+    
+    --shadow-sm: 0 4px 12px rgba(92, 61, 46, 0.12);
+    --shadow-md: 0 10px 25px rgba(92, 61, 46, 0.18);
+    --shadow-lg: 0 20px 45px rgba(74, 46, 27, 0.22);
+}
+
+/* Tropical Mode (Sunset Emerald & Palm Oasis Theme) Variables */
+body.tropical-mode {
+    --bg-app: #ecfdf5;
+    --bg-sidebar: #d1fae5;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --border-color: rgba(16, 185, 129, 0.32);
+    --text-primary: #064e3b;
+    --text-secondary: #047857;
+    
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-light: rgba(16, 185, 129, 0.18);
+    
+    --secondary: #ffffff;
+    --secondary-hover: #a7f3d0;
+    --secondary-border: rgba(16, 185, 129, 0.35);
+    
+    --success: #059669;
+    --success-bg: rgba(5, 150, 105, 0.12);
+    --warning: #f97316;
+    --warning-bg: rgba(249, 115, 22, 0.12);
+    --danger: #ef4444;
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    
+    --shadow-sm: 0 4px 12px rgba(16, 185, 129, 0.14);
+    --shadow-md: 0 10px 25px rgba(16, 185, 129, 0.2);
+    --shadow-lg: 0 20px 45px rgba(6, 78, 59, 0.25);
+}
+
 
 /* ==========================================================================
    RESET & BASE STYLES
@@ -1896,6 +1954,281 @@ body.pink-mode .stat-card-number {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
+
+/* --- BROWN MODE COMPONENT OVERRIDES (Warm Espresso & Caramel) --- */
+body.brown-mode .login-overlay {
+    background: radial-gradient(circle at 30% 30%, #f0e2d5 0%, #ebdcd0 50%, #d8c2b0 100%) !important;
+}
+
+body.brown-mode .ambient-mesh .orb-1 {
+    background: radial-gradient(circle, rgba(184, 115, 51, 0.65) 0%, rgba(139, 94, 60, 0.25) 70%) !important;
+}
+
+body.brown-mode .ambient-mesh .orb-2 {
+    background: radial-gradient(circle, rgba(212, 163, 115, 0.6) 0%, rgba(160, 82, 45, 0.2) 70%) !important;
+}
+
+body.brown-mode .ambient-mesh .orb-3 {
+    background: radial-gradient(circle, rgba(230, 208, 192, 0.5) 0%, rgba(139, 94, 60, 0.18) 70%) !important;
+}
+
+body.brown-mode .login-box {
+    background: rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(25px) !important;
+    -webkit-backdrop-filter: blur(25px) !important;
+    border: 2px solid rgba(160, 82, 45, 0.4) !important;
+    box-shadow: 0 30px 70px rgba(74, 46, 27, 0.28), 0 0 40px rgba(184, 115, 51, 0.18) !important;
+    border-radius: 28px !important;
+}
+
+body.brown-mode .login-logo h2 {
+    color: #4a2e1b !important;
+}
+
+body.brown-mode .login-logo h2 span,
+body.brown-mode .login-logo i {
+    background: linear-gradient(135deg, #7c4424 0%, #b87333 50%, #d4a373 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+body.brown-mode .login-subtitle {
+    color: #7c5237 !important;
+}
+
+body.brown-mode .btn-primary {
+    background: linear-gradient(135deg, #7c4424 0%, #b87333 50%, #d4a373 100%) !important;
+    border-radius: 50px !important;
+    font-size: 15px !important;
+    box-shadow: 0 10px 25px rgba(124, 68, 36, 0.38) !important;
+}
+
+body.brown-mode .btn-primary:hover {
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 15px 35px rgba(124, 68, 36, 0.52) !important;
+}
+
+body.brown-mode .input-with-icon input {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1.5px solid rgba(160, 82, 45, 0.38) !important;
+    border-radius: 16px !important;
+    color: #4a2e1b !important;
+}
+
+body.brown-mode .input-with-icon i {
+    color: #b87333 !important;
+}
+
+body.brown-mode .input-with-icon input:focus {
+    background: #ffffff !important;
+    border-color: #8b5e3c !important;
+    box-shadow: 0 0 0 4px rgba(139, 94, 60, 0.22) !important;
+}
+
+body.brown-mode .sidebar {
+    background: linear-gradient(180deg, #f0e2d5 0%, #ebdcd0 100%);
+    border-right: 1px solid rgba(160, 82, 45, 0.3);
+}
+
+body.brown-mode .menu-item {
+    color: #7c5237;
+    border-radius: 14px;
+}
+
+body.brown-mode .menu-item i {
+    color: #b87333;
+}
+
+body.brown-mode .menu-item:hover,
+body.brown-mode .menu-item.active {
+    background: linear-gradient(135deg, rgba(230, 208, 192, 0.8) 0%, rgba(212, 163, 115, 0.5) 100%);
+    color: #4a2e1b;
+    font-weight: 700;
+}
+
+body.brown-mode .glass-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(160, 82, 45, 0.3);
+    box-shadow: 0 10px 25px rgba(92, 61, 46, 0.12);
+    border-radius: 20px;
+}
+
+body.brown-mode .main-header {
+    background: rgba(247, 241, 236, 0.95);
+    border-bottom: 1px solid rgba(160, 82, 45, 0.28);
+}
+
+body.brown-mode table th {
+    background: linear-gradient(135deg, #e6d0c0 0%, #d8c2b0 100%);
+    color: #4a2e1b;
+    font-weight: 700;
+}
+
+body.brown-mode tr:hover td {
+    background-color: rgba(184, 115, 51, 0.14) !important;
+}
+
+body.brown-mode .modal-box {
+    background: rgba(255, 255, 255, 0.98);
+    border: 2px solid rgba(160, 82, 45, 0.4);
+    color: #4a2e1b;
+    border-radius: 24px;
+}
+
+body.brown-mode .status-badge {
+    background: rgba(184, 115, 51, 0.18) !important;
+    color: #7c4424 !important;
+    border: 1px solid rgba(184, 115, 51, 0.4) !important;
+    font-weight: 700 !important;
+}
+
+body.brown-mode .stat-card-title {
+    color: #7c5237;
+}
+
+body.brown-mode .stat-card-number {
+    background: linear-gradient(135deg, #7c4424 0%, #b87333 50%, #d4a373 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* --- TROPICAL SUNSET & OASIS COMPONENT OVERRIDES (Tropical Mode) --- */
+body.tropical-mode .login-overlay {
+    background: radial-gradient(circle at 30% 30%, #d1fae5 0%, #a7f3d0 50%, #34d399 100%) !important;
+}
+
+body.tropical-mode .ambient-mesh .orb-1 {
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.7) 0%, rgba(56, 189, 248, 0.3) 70%) !important;
+}
+
+body.tropical-mode .ambient-mesh .orb-2 {
+    background: radial-gradient(circle, rgba(249, 115, 22, 0.6) 0%, rgba(245, 158, 11, 0.25) 70%) !important;
+}
+
+body.tropical-mode .ambient-mesh .orb-3 {
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.55) 0%, rgba(14, 165, 233, 0.2) 70%) !important;
+}
+
+body.tropical-mode .login-box {
+    background: rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(25px) !important;
+    -webkit-backdrop-filter: blur(25px) !important;
+    border: 2px solid rgba(16, 185, 129, 0.42) !important;
+    box-shadow: 0 30px 70px rgba(6, 78, 59, 0.28), 0 0 40px rgba(16, 185, 129, 0.2) !important;
+    border-radius: 28px !important;
+}
+
+body.tropical-mode .login-logo h2 {
+    color: #064e3b !important;
+}
+
+body.tropical-mode .login-logo h2 span,
+body.tropical-mode .login-logo i {
+    background: linear-gradient(135deg, #059669 0%, #10b981 50%, #f97316 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+body.tropical-mode .login-subtitle {
+    color: #047857 !important;
+}
+
+body.tropical-mode .btn-primary {
+    background: linear-gradient(135deg, #059669 0%, #10b981 50%, #f97316 100%) !important;
+    border-radius: 50px !important;
+    font-size: 15px !important;
+    box-shadow: 0 10px 25px rgba(5, 150, 105, 0.4) !important;
+}
+
+body.tropical-mode .btn-primary:hover {
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 15px 35px rgba(5, 150, 105, 0.55) !important;
+}
+
+body.tropical-mode .input-with-icon input {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1.5px solid rgba(16, 185, 129, 0.4) !important;
+    border-radius: 16px !important;
+    color: #064e3b !important;
+}
+
+body.tropical-mode .input-with-icon i {
+    color: #10b981 !important;
+}
+
+body.tropical-mode .input-with-icon input:focus {
+    background: #ffffff !important;
+    border-color: #059669 !important;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.25) !important;
+}
+
+body.tropical-mode .sidebar {
+    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+    border-right: 1px solid rgba(16, 185, 129, 0.32);
+}
+
+body.tropical-mode .menu-item {
+    color: #047857;
+    border-radius: 14px;
+}
+
+body.tropical-mode .menu-item i {
+    color: #10b981;
+}
+
+body.tropical-mode .menu-item:hover,
+body.tropical-mode .menu-item.active {
+    background: linear-gradient(135deg, rgba(167, 243, 208, 0.8) 0%, rgba(110, 231, 183, 0.5) 100%);
+    color: #064e3b;
+    font-weight: 700;
+}
+
+body.tropical-mode .glass-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(16, 185, 129, 0.32);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.14);
+    border-radius: 20px;
+}
+
+body.tropical-mode .main-header {
+    background: rgba(236, 253, 245, 0.95);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+body.tropical-mode table th {
+    background: linear-gradient(135deg, #a7f3d0 0%, #6ee7b7 100%);
+    color: #064e3b;
+    font-weight: 700;
+}
+
+body.tropical-mode tr:hover td {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+body.tropical-mode .modal-box {
+    background: rgba(255, 255, 255, 0.98);
+    border: 2px solid rgba(16, 185, 129, 0.42);
+    color: #064e3b;
+    border-radius: 24px;
+}
+
+body.tropical-mode .status-badge {
+    background: rgba(16, 185, 129, 0.18) !important;
+    color: #047857 !important;
+    border: 1px solid rgba(16, 185, 129, 0.4) !important;
+    font-weight: 700 !important;
+}
+
+body.tropical-mode .stat-card-title {
+    color: #047857;
+}
+
+body.tropical-mode .stat-card-number {
+    background: linear-gradient(135deg, #059669 0%, #10b981 50%, #f97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 
 
 

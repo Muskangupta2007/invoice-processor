@@ -23,7 +23,7 @@
     <!-- Chart.js for Animated Dashboards -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=10.0.0">
+    <link rel="stylesheet" href="style.css?v=11.0.0">
 </head>
 <body class="dark-mode">
     <!-- FULLSCREEN GLASSMORPHIC LOGIN SCREEN -->
@@ -118,9 +118,17 @@
                     <p class="subtitle" id="page-subtitle">Real-time invoice and challan ingestion metrics.</p>
                 </div>
                 <div class="header-actions">
-                    <button id="theme-toggle" class="theme-btn" title="Toggle Theme">
-                        <i class="fa-solid fa-sun"></i>
-                    </button>
+                    <!-- Interactive Theme Select Dropdown -->
+                    <div class="theme-select-wrapper" style="position: relative; display: flex; align-items: center;">
+                        <i class="fa-solid fa-palette" style="position: absolute; left: 12px; pointer-events: none; font-size: 13px; opacity: 0.85; color: var(--primary);"></i>
+                        <select id="theme-select" class="theme-select-dropdown" style="padding: 8px 14px 8px 32px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; transition: all 0.25s ease;">
+                            <option value="dark">🌙 Dark Mode</option>
+                            <option value="light">☀️ Light Mode</option>
+                            <option value="pink">💖 Soft Pink</option>
+                            <option value="brown">☕ Warm Espresso</option>
+                            <option value="tropical">🏝️ Tropical Oasis</option>
+                        </select>
+                    </div>
                     <!-- Open Excel Dropdown Split Button -->
                     <div class="dropdown-action-wrapper">
                         <button id="open-excel-dropdown-btn" class="btn btn-secondary dropdown-action-trigger">
@@ -857,6 +865,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="app.js?v=10.0.0"></script>
+    <script src="app.js?v=11.0.0"></script>
 </body>
 </html>

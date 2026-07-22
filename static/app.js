@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabContents = document.querySelectorAll(".tab-content");
     const pageTitle = document.getElementById("page-title");
     const pageSubtitle = document.getElementById("page-subtitle");
-    const themeToggle = document.getElementById("theme-toggle");
+    const themeSelect = document.getElementById("theme-select");
     
     // Status indicators
     const geminiStatus = document.getElementById("gemini-status");
@@ -567,43 +567,41 @@ document.addEventListener("DOMContentLoaded", () => {
     cardPendingEway.addEventListener("dblclick", () => triggerReportDownload("pending_eway"));
     if (cardWorkOrder) cardWorkOrder.addEventListener("dblclick", () => triggerReportDownload("work_order"));
 
-    // --- 3-WAY THEME SYSTEM (Dark -> Light -> Soft Pink) ---
+    // --- MULTI-THEME DROPDOWN SYSTEM (Dark, Light, Soft Pink, Warm Espresso, Tropical) ---
     function applyTheme(themeName) {
-        document.body.classList.remove("dark-mode", "light-mode", "pink-mode");
+        document.body.classList.remove("dark-mode", "light-mode", "pink-mode", "brown-mode", "tropical-mode");
         
-        if (themeName === "light") {
-            document.body.classList.add("light-mode");
-            themeToggle.innerHTML = '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i>';
-            themeToggle.title = "Theme: Light (Click for Soft Pink Theme)";
-        } else if (themeName === "pink") {
-            document.body.classList.add("pink-mode");
-            themeToggle.innerHTML = '<i class="fa-solid fa-heart" style="color: #f43f5e;"></i>';
-            themeToggle.title = "Theme: Soft Pink (Click for Dark Theme)";
-        } else {
-            document.body.classList.add("dark-mode");
-            themeToggle.innerHTML = '<i class="fa-solid fa-moon" style="color: #818cf8;"></i>';
-            themeToggle.title = "Theme: Dark (Click for Light Theme)";
+        const validThemes = ["dark", "light", "pink", "brown", "tropical"];
+        const activeTheme = validThemes.includes(themeName) ? themeName : "dark";
+        
+        document.body.classList.add(`${activeTheme}-mode`);
+        
+        if (themeSelect) {
+            themeSelect.value = activeTheme;
         }
-        localStorage.setItem("invosync_theme", themeName);
+
+        localStorage.setItem("invosync_theme", activeTheme);
         if (state.vendorChart) drawChart();
     }
 
-    // Load saved theme preference on boot
+    // Load saved theme preference from localStorage on boot
     const savedTheme = localStorage.getItem("invosync_theme") || "dark";
     applyTheme(savedTheme);
 
-    themeToggle.addEventListener("click", () => {
-        if (document.body.classList.contains("dark-mode")) {
-            applyTheme("light");
-            showToast("Switched to Light Theme");
-        } else if (document.body.classList.contains("light-mode")) {
-            applyTheme("pink");
-            showToast("Switched to Soft Pink Theme 🌸");
-        } else {
-            applyTheme("dark");
-            showToast("Switched to Dark Theme");
-        }
-    });
+    if (themeSelect) {
+        themeSelect.addEventListener("change", (e) => {
+            const chosen = e.target.value;
+            applyTheme(chosen);
+            const themeNames = {
+                dark: "Dark Mode 🌙",
+                light: "Light Mode ☀️",
+                pink: "Soft Pink Theme 💖",
+                brown: "Warm Espresso Theme ☕",
+                tropical: "Tropical Oasis Theme 🏝️"
+            };
+            showToast(`Switched to ${themeNames[chosen] || chosen}`);
+        });
+    }
 
     function onLedgerFiltersChange() {
         state.activeDocType = ledgerModuleFilter.value;
@@ -1003,8 +1001,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const isDark = document.body.classList.contains("dark-mode");
         const isPink = document.body.classList.contains("pink-mode");
-        const textColor = isPink ? "#9d174d" : (isDark ? "#9ea4c0" : "#6b7280");
-        const gridColor = isPink ? "rgba(244, 114, 182, 0.2)" : (isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)");
+        const isBrown = document.body.classList.contains("brown-mode");
+        const isTropical = document.body.classList.contains("tropical-mode");
+
+        let textColor = "#6b7280";
+        let gridColor = "rgba(0, 0, 0, 0.05)";
+
+        if (isPink) {
+            textColor = "#9d174d";
+            gridColor = "rgba(244, 114, 182, 0.2)";
+        } else if (isBrown) {
+            textColor = "#7c5237";
+            gridColor = "rgba(160, 82, 45, 0.2)";
+        } else if (isTropical) {
+            textColor = "#047857";
+            gridColor = "rgba(16, 185, 129, 0.2)";
+        } else if (isDark) {
+            textColor = "#9ea4c0";
+            gridColor = "rgba(255, 255, 255, 0.05)";
+        }
 
         const chartData = state.reports.by_company || [];
         const labels = chartData.map(item => item.company.length > 18 ? item.company.substring(0, 15) + "..." : item.company);
