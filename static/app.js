@@ -218,9 +218,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- LOGIN FORM HANDLER ---
     
+    [loginUsername, loginPassword].forEach(input => {
+        if (input) {
+            input.addEventListener("input", () => {
+                loginUsername.classList.remove("input-error");
+                loginPassword.classList.remove("input-error");
+                const loginErrorAlert = document.getElementById("login-error-alert");
+                if (loginErrorAlert) loginErrorAlert.style.display = "none";
+            });
+        }
+    });
+
     loginForm.addEventListener("submit", (e) => {
         e.preventDefault();
         
+        const loginErrorAlert = document.getElementById("login-error-alert");
+        const loginErrorText = document.getElementById("login-error-text");
+        const loginBox = document.querySelector(".login-box");
+        
+        if (loginErrorAlert) loginErrorAlert.style.display = "none";
+        loginUsername.classList.remove("input-error");
+        loginPassword.classList.remove("input-error");
+        if (loginBox) loginBox.classList.remove("shake");
+
         const username = loginUsername.value.trim();
         const password = loginPassword.value.trim();
         
@@ -229,16 +249,42 @@ document.addEventListener("DOMContentLoaded", () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password })
         })
-        .then(res => {
-            if (res.status === 401) {
-                showToast("Invalid Username or Password.", "danger");
-                throw new Error("Invalid credentials");
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.status === "error") {
+                const errMsg = data.message || "Invalid Username or Password.";
+                
+                // Display error alert banner
+                if (loginErrorAlert && loginErrorText) {
+                    loginErrorText.textContent = errMsg;
+                    loginErrorAlert.style.display = "flex";
+                }
+                
+                // Highlight input fields with red error border
+                loginUsername.classList.add("input-error");
+                loginPassword.classList.add("input-error");
+                
+                // Trigger card shake animation for clear visual feedback
+                if (loginBox) {
+                    void loginBox.offsetWidth; // Force reflow
+                    loginBox.classList.add("shake");
+                }
+                
+                // Focus & select password for immediate correction
+                loginPassword.focus();
+                loginPassword.select();
+                
+                showToast(errMsg, "danger");
+                throw new Error(errMsg);
             }
-            return res.json();
+            return data;
         })
         .then(data => {
             if (data.status === "success") {
                 localStorage.setItem("auth_token", data.token);
+                if (loginErrorAlert) loginErrorAlert.style.display = "none";
+                loginUsername.classList.remove("input-error");
+                loginPassword.classList.remove("input-error");
                 hideLoginScreen();
                 showToast("Welcome back! Signed in successfully.");
                 switchTab("dashboard");
@@ -246,8 +292,24 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
             console.error("Login request failed:", err);
+            const isAuthError = err.message && (err.message.includes("Invalid") || err.message.includes("attempt(s)") || err.message.includes("locked"));
+            if (!isAuthError) {
+                const errMsg = "Unable to connect to server. Please check your network connection.";
+                if (loginErrorAlert && loginErrorText) {
+                    loginErrorText.textContent = errMsg;
+                    loginErrorAlert.style.display = "flex";
+                }
+                loginUsername.classList.add("input-error");
+                loginPassword.classList.add("input-error");
+                if (loginBox) {
+                    void loginBox.offsetWidth;
+                    loginBox.classList.add("shake");
+                }
+                showToast(errMsg, "danger");
+            }
         });
     });
+
 
     logoutBtn.addEventListener("click", () => {
         if (confirm("Are you sure you want to sign out?")) {
@@ -2258,9 +2320,24 @@ function writeSheetData(sheetName, dataList) {
     closeSettingsAuthModal.addEventListener("click", closeSettingsAuthModalWindow);
     settingsAuthCancelBtn.addEventListener("click", closeSettingsAuthModalWindow);
 
+    if (settingsAuthPassword) {
+        settingsAuthPassword.addEventListener("input", () => {
+            settingsAuthPassword.classList.remove("input-error");
+            const settingsAuthErrorAlert = document.getElementById("settings-auth-error-alert");
+            if (settingsAuthErrorAlert) settingsAuthErrorAlert.style.display = "none";
+        });
+    }
+
     settingsAuthForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const pwd = settingsAuthPassword.value.trim();
+        const settingsAuthErrorAlert = document.getElementById("settings-auth-error-alert");
+        const settingsAuthErrorText = document.getElementById("settings-auth-error-text");
+        const modalBox = settingsAuthModal.querySelector(".modal-box");
+        
+        if (settingsAuthErrorAlert) settingsAuthErrorAlert.style.display = "none";
+        settingsAuthPassword.classList.remove("input-error");
+        if (modalBox) modalBox.classList.remove("shake");
         
         fetch("/api/settings", {
             headers: {
@@ -2269,7 +2346,19 @@ function writeSheetData(sheetName, dataList) {
         })
         .then(res => {
             if (res.status === 401) {
-                showToast("Incorrect Settings Lock password.", "danger");
+                const errMsg = "Incorrect Settings Lock password.";
+                if (settingsAuthErrorAlert && settingsAuthErrorText) {
+                    settingsAuthErrorText.textContent = errMsg;
+                    settingsAuthErrorAlert.style.display = "flex";
+                }
+                settingsAuthPassword.classList.add("input-error");
+                if (modalBox) {
+                    void modalBox.offsetWidth;
+                    modalBox.classList.add("shake");
+                }
+                settingsAuthPassword.focus();
+                settingsAuthPassword.select();
+                showToast(errMsg, "danger");
                 throw new Error("Unauthorized settings lock password");
             }
             if (!res.ok) {
