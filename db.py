@@ -233,7 +233,7 @@ def init_db():
             company TEXT NOT NULL,
             doc_type TEXT NOT NULL,
             doc_no TEXT NOT NULL,
-            deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (company, doc_type, doc_no)
         )
     """)
