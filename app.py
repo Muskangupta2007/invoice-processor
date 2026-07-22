@@ -581,6 +581,18 @@ def delete_document(company, doc_type, doc_no):
     try:
         success = db.delete_document(company, doc_type, doc_no)
         if success:
+            try:
+                db.sync_to_excel()
+            except Exception as e:
+                print(f"[Delete] Error syncing excel: {e}")
+                
+            try:
+                import gsheet
+                import threading
+                threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+            except Exception as e:
+                print(f"[Delete] Error syncing gsheet: {e}")
+                
             return jsonify({"status": "success", "message": "Document deleted successfully."})
         else:
             return jsonify({"status": "error", "message": "Document not found or could not be deleted."}), 404

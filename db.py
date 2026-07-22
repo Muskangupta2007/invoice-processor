@@ -237,6 +237,7 @@ def init_db():
         cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
         cursor.execute("UPDATE documents SET eway_bill = 'N/A' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) < 50000")
         cursor.execute("UPDATE documents SET eway_bill = 'PENDING' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) >= 50000")
+        cursor.execute("UPDATE documents SET challan_no = 'DIRECT INVOICE' WHERE UPPER(TRIM(challan_no)) IN ('OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.') OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%'")
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")
