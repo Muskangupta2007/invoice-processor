@@ -1601,60 +1601,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- EDIT MRN & FIELD EDIT DIALOG ---
     
-    function formatDateForDisplay(dateStr) {
-        if (!dateStr) return "";
-        try {
-            const parts = String(dateStr).trim().split("-");
-            if (parts.length === 3) {
-                const year = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1;
-                const day = parseInt(parts[2], 10);
-                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-                    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    const dayStr = day < 10 ? '0' + day : String(day);
-                    return `${dayStr} ${months[month]} ${year}`;
-                }
-            }
-        } catch (e) {}
-        return dateStr;
-    }
-
-    function formatDateForPicker(dateStr) {
-        if (!dateStr) return "";
-        try {
-            const d = new Date(dateStr);
-            if (!isNaN(d.getTime())) {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
-        } catch (e) {}
-        return "";
-    }
-
+    // --- EDIT MRN & FIELD EDIT DIALOG (FLATPICKR CALENDAR INTEGRATION) ---
+    
+    let mrnFlatpickr = null;
     const editMrnDateInput = document.getElementById("edit-mrn-date");
-    const editMrnDatePicker = document.getElementById("edit-mrn-date-picker");
     const editMrnDateBtn = document.getElementById("edit-mrn-date-btn");
 
-    if (editMrnDatePicker && editMrnDateInput) {
-        editMrnDatePicker.addEventListener("change", () => {
-            if (editMrnDatePicker.value) {
-                editMrnDateInput.value = formatDateForDisplay(editMrnDatePicker.value);
-            }
-        });
-    }
-
-    if (editMrnDateBtn && editMrnDatePicker) {
-        editMrnDateBtn.addEventListener("click", () => {
-            if (typeof editMrnDatePicker.showPicker === "function") {
-                try {
-                    editMrnDatePicker.showPicker();
-                } catch (e) {
-                    editMrnDatePicker.click();
+    if (editMrnDateInput && typeof flatpickr !== "undefined") {
+        mrnFlatpickr = flatpickr(editMrnDateInput, {
+            dateFormat: "d F Y",
+            allowInput: true,
+            theme: "dark",
+            onReady: function(selectedDates, dateStr, instance) {
+                if (editMrnDateBtn) {
+                    editMrnDateBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        instance.toggle();
+                    });
                 }
-            } else {
-                editMrnDatePicker.click();
             }
         });
     }
@@ -1666,7 +1631,9 @@ document.addEventListener("DOMContentLoaded", () => {
         editInvoiceNo.value = doc.doc_no;
         editMrnStatus.value = doc.mrn_status || "PENDING";
         editMrnDate.value = doc.mrn_date || "";
-        if (editMrnDatePicker) editMrnDatePicker.value = formatDateForPicker(doc.mrn_date);
+        if (mrnFlatpickr) {
+            mrnFlatpickr.setDate(doc.mrn_date || "", true);
+        }
         editMrnNo.value = doc.mrn_no || "";
         editRemarks.value = doc.remarks || "";
 
