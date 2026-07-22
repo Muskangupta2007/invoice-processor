@@ -508,7 +508,9 @@ def sync_from_google_sheet(company):
                 new_status = doc.get("mrn_status")
                 new_mrn_no = doc.get("mrn_no")
                 
-                old_status, old_mrn = existing_status_map.get(doc_no, ("PENDING", None))
+                old_info = existing_status_map.get(doc_no, {'mrn_status': 'PENDING', 'mrn_no': None})
+                old_status = old_info.get('mrn_status', 'PENDING')
+                old_mrn = old_info.get('mrn_no')
                 
                 # Check for updates or transitions
                 if old_status != new_status or (new_status == 'DONE' and new_mrn_no != old_mrn):

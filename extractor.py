@@ -188,6 +188,53 @@ def fix_truncated_challan_number(val_str, content):
         
     return ""
 
+def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
+    """
+    Directly extracts whatever line is written under 'Delivery Note' / 'Delivery Challan'
+    in the invoice image/OCR text.
+    """
+    result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
+    content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
+    analyze_result = result_json.get("analyzeResult", {})
+    
+    # 1. Spatial bounding-box line inspection from pages[].lines if available
+    pages = analyze_result.get("pages", [])
+    for page in pages:
+        lines = page.get("lines", [])
+        for idx, line in enumerate(lines):
+            line_text = str(line.get("content") or "").strip().lower()
+            if any(k in line_text for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
+                for next_line in lines[idx + 1: idx + 6]:
+                    nxt_text = str(next_line.get("content") or "").strip()
+                    if not nxt_text:
+                        continue
+                    clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
+                    if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER']):
+                        continue
+                    healed = fix_truncated_challan_number(clean_nxt, content)
+                    if healed and is_valid_challan_number(healed):
+                        return healed
+                    if is_valid_challan_number(clean_nxt):
+                        return clean_nxt
+
+    # 2. Line-by-line OCR content scanning
+    norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
+    ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
+    for idx, l_text in enumerate(ocr_lines):
+        l_lower = l_text.lower()
+        if any(k in l_lower for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
+            for nxt_text in ocr_lines[idx + 1: idx + 6]:
+                clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
+                if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER']):
+                    continue
+                healed = fix_truncated_challan_number(clean_nxt, norm_content)
+                if healed and is_valid_challan_number(healed):
+                    return healed
+                if is_valid_challan_number(clean_nxt):
+                    return clean_nxt
+                    
+    return None
+
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
     Extracts Delivery Challan / Delivery Note Number from Azure Document Intelligence result JSON
@@ -197,6 +244,12 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
 
     norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
+    
+    # 0. DIRECTLY extract whatever is written under "Delivery Note" / "Delivery Challan"
+    under_delivery_note = extract_line_under_delivery_note(result_json, norm_content)
+    if under_delivery_note:
+        return under_delivery_note
+
     extracted_cand = None
 
     # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
