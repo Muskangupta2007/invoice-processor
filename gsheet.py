@@ -329,20 +329,27 @@ def sync_from_google_sheet(company):
                 inv_db['amount'] = 0.0
                 
             # Clean and enforce E-way bill rules
-            eway = str(inv_db.get('eway_bill_no') or inv_db.get('eway_bill') or '').strip()
-            is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+            eway_status = str(inv_db.get('eway_bill', '')).strip()
+            eway_no = str(inv_db.get('eway_bill_no', '')).strip()
             
+            if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+                if not eway_no:
+                    eway_no = eway_status
+                eway_status = "DONE"
+                
             try:
                 amt = float(inv_db.get('amount') or 0.0)
             except (ValueError, TypeError):
                 amt = 0.0
                 
-            if is_custom_eway:
-                inv_db['eway_bill_no'] = eway
+            if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+                inv_db['eway_bill_no'] = eway_no
                 inv_db['eway_bill'] = "DONE"
             else:
                 inv_db['eway_bill_no'] = ""
-                if amt < 50000:
+                if eway_status.upper() == "DONE":
+                    inv_db['eway_bill'] = "DONE"
+                elif amt < 50000:
                     inv_db['eway_bill'] = "N/A"
                 else:
                     inv_db['eway_bill'] = "PENDING"

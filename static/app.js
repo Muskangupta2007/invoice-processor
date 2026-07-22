@@ -862,7 +862,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         const targetInv = state.invoices.find(inv => inv.doc_no === docNo);
                         if (targetInv) {
-                            targetInv.eway_bill_no = ewayVal;
+                            if (ewayVal && !['PENDING', 'N/A', 'DONE'].includes(ewayVal.trim().toUpperCase())) {
+                                targetInv.eway_bill_no = ewayVal.trim();
+                            }
                             targetInv.eway_bill = 'DONE';
                         }
                         renderAlertLists();
@@ -1912,7 +1914,8 @@ document.addEventListener("DOMContentLoaded", () => {
             editInvoiceItemDescGroup.style.display = "block";
             editInvoiceItemDescription.value = doc.item_description || "";
             document.getElementById("edit-eway-bill-group").style.display = "block";
-            document.getElementById("edit-eway-bill").value = doc.eway_bill || "";
+            const currentEway = doc.eway_bill_no || (['PENDING', 'N/A', 'DONE'].includes(String(doc.eway_bill || '').toUpperCase()) ? '' : doc.eway_bill) || "";
+            document.getElementById("edit-eway-bill").value = currentEway;
             if (document.getElementById("edit-asn-no-group")) {
                 document.getElementById("edit-asn-no-group").style.display = "block";
                 document.getElementById("edit-asn-no").value = doc.asn_no || "";
@@ -1959,8 +1962,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (updatedData.asn_no !== undefined) {
                     targetInv.asn_no = updatedData.asn_no;
                 }
-                if (updatedData.eway_bill) {
-                    targetInv.eway_bill_no = updatedData.eway_bill;
+                const ewayInput = String(updatedData.eway_bill || '').trim();
+                if (ewayInput && !['PENDING', 'N/A', 'DONE'].includes(ewayInput.toUpperCase())) {
+                    targetInv.eway_bill_no = ewayInput;
+                    targetInv.eway_bill = 'DONE';
+                } else if (ewayInput.toUpperCase() === 'DONE') {
                     targetInv.eway_bill = 'DONE';
                 }
             }

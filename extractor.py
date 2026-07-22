@@ -76,26 +76,56 @@ def extract_invoice_data(file_path, endpoint, api_key, doc_type="Invoice"):
         
     return parse_azure_invoice_result(result, doc_type)
 
-def extract_eway_bill_number(content):
+def extract_eway_bill_number(result_json_or_content, raw_content=None):
+    """
+    Extracts 12-digit E-Way Bill Number from Azure Document Intelligence result JSON
+    (Key-Value pairs & document fields) or raw OCR text content.
+    """
+    result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
+    content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
+
+    # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
+    analyze_result = result_json.get("analyzeResult", {})
+    kv_pairs = analyze_result.get("keyValuePairs", [])
+    for kv in kv_pairs:
+        key_text = str(kv.get("key", {}).get("content", "")).lower()
+        val_text = str(kv.get("value", {}).get("content", ""))
+        if "eway" in key_text or "e-way" in key_text or "ewb" in key_text:
+            match = re.search(r'\b(\d{12}|\d{4}[ -]\d{4}[ -]\d{4})\b', val_text)
+            if match:
+                return re.sub(r'[- ]', '', match.group(1))
+
+    # 2. Inspect Document Level Fields
+    documents = analyze_result.get("documents", [])
+    if documents:
+        fields = documents[0].get("fields", {})
+        for field_key in ["EwayBill", "EWayBill", "EwayBillNumber", "EWayBillNo", "EWBNumber", "EWBNo"]:
+            if field_key in fields:
+                f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "")
+                match = re.search(r'\b(\d{12}|\d{4}[ -]\d{4}[ -]\d{4})\b', f_val)
+                if match:
+                    return re.sub(r'[- ]', '', match.group(1))
+
     if not content:
         return None
-    # Normalize whitespaces and newlines
-    normalized_content = " ".join(content.split())
-    # Regex to find eway bill label followed by 12 digits (with optional spaces/dashes)
-    pattern = r'(?i)e[- ]?way\s*(?:bill|no|number|num)?\s*(?:no|number|num)?\s*[\.:-]*\s*(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)'
-    match = re.search(pattern, normalized_content)
-    if match:
-        raw_val = match.group(1)
-        # Clean up separators
-        clean_val = re.sub(r'[- ]', '', raw_val)
-        return clean_val
-    # Fallback to look for "eway" keyword followed by up to 40 characters and then 12 digits
-    pattern_fallback = r'(?i)e[- ]?way(?:[a-z0-9\s.,:-]{0,40})?(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)'
-    match_fb = re.search(pattern_fallback, normalized_content)
-    if match_fb:
-        raw_val_fb = match_fb.group(1)
-        clean_val_fb = re.sub(r'[- ]', '', raw_val_fb)
-        return clean_val_fb
+        
+    normalized_content = " ".join(str(content).split())
+    
+    # 3. Regex matching 12-digit numbers near E-Way / EWB keywords in raw OCR content
+    patterns = [
+        r'(?i)(?:e[- ]?way|ewb)\s*(?:bill|no|number|num)?\s*(?:no|number|num)?\s*[\.:#-]*\s*(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)',
+        r'(?i)(?:e[- ]?way|ewb)(?:[a-z0-9\s.,:-]{0,60})?(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)',
+        r'(?i)(?:e[- ]?way|ewb)[^\d]{0,40}(\b\d{12}\b|\b\d{4}[ -]\d{4}[ -]\d{4}\b)'
+    ]
+    
+    for pat in patterns:
+        match = re.search(pat, normalized_content)
+        if match:
+            raw_val = match.group(1)
+            clean_val = re.sub(r'[- ]', '', raw_val)
+            if len(clean_val) == 12 and clean_val.isdigit():
+                return clean_val
+                
     return None
 
 def parse_azure_invoice_result(result, doc_type="Invoice"):
@@ -263,7 +293,7 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
     eway_bill_val = "PENDING"
     eway_bill_no_val = ""
     if doc_type == "Invoice":
-        extracted_no = extract_eway_bill_number(content)
+        extracted_no = extract_eway_bill_number(result, content)
         if extracted_no:
             eway_bill_no_val = extracted_no
             eway_bill_val = "DONE"

@@ -230,10 +230,11 @@ def init_db():
         except Exception:
             pass
     
-    # Clean up hardcoded mock ASN numbers from database
+    # Clean up hardcoded mock ASN numbers and invalid eway_bill_no='DONE' values from database
     try:
         cursor.execute("UPDATE documents SET asn_no = '' WHERE asn_no = 'ASN/26/000797'")
         cursor.execute("UPDATE documents SET mode_of_transp = '' WHERE mode_of_transp = 'Tempo'")
+        cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) = 'DONE'")
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")
@@ -350,19 +351,28 @@ def add_document(data):
             
     # Clean and enforce E-way bill rules
     if doc_type == 'Invoice':
-        eway = str(data.get('eway_bill', '')).strip()
-        is_custom_eway = eway and eway.upper() not in ['PENDING', 'N/A', '']
+        eway_status = str(data.get('eway_bill', '')).strip()
+        eway_no = str(data.get('eway_bill_no', '')).strip()
+        
+        # If user passed custom eway number in eway_bill field
+        if eway_status and eway_status.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+            if not eway_no:
+                eway_no = eway_status
+            eway_status = "DONE"
+            
         try:
             amt = float(data.get('amount') or 0.0)
         except (ValueError, TypeError):
             amt = 0.0
             
-        if is_custom_eway:
-            data['eway_bill_no'] = eway
+        if eway_no and eway_no.upper() not in ['PENDING', 'N/A', 'DONE', '']:
+            data['eway_bill_no'] = eway_no
             data['eway_bill'] = "DONE"
         else:
-            data['eway_bill_no'] = data.get('eway_bill_no') or ""
-            if amt < 50000:
+            data['eway_bill_no'] = ""
+            if eway_status.upper() == "DONE":
+                data['eway_bill'] = "DONE"
+            elif amt < 50000:
                 data['eway_bill'] = "N/A"
             else:
                 data['eway_bill'] = "PENDING"
