@@ -1841,23 +1841,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     const itemDiv = document.createElement("div");
                     itemDiv.className = "item-status-card";
-                    itemDiv.style.cssText = "background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;";
+                    itemDiv.style.cssText = "background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 10px;";
                     itemDiv.innerHTML = `
-                        <div style="flex-grow: 1;">
-                            <div style="font-weight: 600; font-size: 13px; color: var(--text-primary);">
-                                <strong>Item ${i+1}:</strong> ${desc}
-                            </div>
-                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
-                                Deliver Qty: ${delQty} ${uom} | PO Qty: ${poQty}
-                            </div>
+                        <div style="font-weight: 600; font-size: 13px; color: var(--text-primary);">
+                            <strong>Item ${i+1}:</strong> ${desc}
                         </div>
-                        <div style="width: 140px; flex-shrink: 0;">
-                            <label style="font-size: 10px; font-weight: 600; display: block; margin-bottom: 2px; color: var(--text-secondary);">Item PO Status</label>
-                            <select class="item-po-status-select form-control" data-index="${i}" style="width: 100%; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-primary); font-weight: 600; font-size: 12px;">
-                                <option value="Open" ${curSt === 'Open' ? 'selected' : ''}>Open</option>
-                                <option value="Close" ${curSt === 'Close' ? 'selected' : ''}>Close</option>
-                                <option value="Work Order" ${curSt === 'Work Order' ? 'selected' : ''}>Work Order</option>
-                            </select>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                            <div style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">
+                                <i class="fa-solid fa-truck"></i> Deliver Qty: <strong style="color: var(--text-primary);">${delQty} ${uom}</strong>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+                                <div style="width: 110px;">
+                                    <label style="font-size: 10px; font-weight: 700; display: block; margin-bottom: 3px; color: var(--text-secondary);">PO QTY</label>
+                                    <input type="text" class="item-po-qty-input form-control" data-index="${i}" value="${poQty}" placeholder="e.g. 150" style="width: 100%; padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-weight: 600; font-size: 12px;">
+                                </div>
+                                <div style="width: 130px;">
+                                    <label style="font-size: 10px; font-weight: 700; display: block; margin-bottom: 3px; color: var(--text-secondary);">ITEM PO STATUS</label>
+                                    <select class="item-po-status-select form-control" data-index="${i}" style="width: 100%; padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-weight: 600; font-size: 12px;">
+                                        <option value="Open" ${curSt === 'Open' ? 'selected' : ''}>Open</option>
+                                        <option value="Close" ${curSt === 'Close' ? 'selected' : ''}>Close</option>
+                                        <option value="Work Order" ${curSt === 'Work Order' ? 'selected' : ''}>Work Order</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     `;
                     container.appendChild(itemDiv);
@@ -1883,23 +1889,33 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (overallSelect) overallSelect.value = initialOverall;
                 updateOverallBadge(initialOverall);
 
-                // Helper to sync all item select dropdowns back to hidden editPoStatus textarea & update overall dropdown
+                // Helper to sync all item select dropdowns and PO Qty inputs back to hidden editPoStatus & editPoQty textareas
                 const syncItemsToHiddenTextarea = () => {
                     const itemSelects = container.querySelectorAll(".item-po-status-select");
                     const statuses = Array.from(itemSelects).map(sel => sel.value);
                     editPoStatus.value = statuses.join("\n");
+
+                    const itemPoQtys = container.querySelectorAll(".item-po-qty-input");
+                    if (itemPoQtys.length > 0) {
+                        const poQtys = Array.from(itemPoQtys).map(input => input.value.trim());
+                        editPoQty.value = poQtys.join("\n");
+                    }
                     
                     const newOverall = calculateOverallPoStatusFromList(statuses);
                     if (overallSelect) overallSelect.value = newOverall;
                     updateOverallBadge(newOverall);
                 };
 
-                // Requirement 2 & 4: Event listener for individual item dropdown changes
+                // Event listeners for individual item dropdown & PO Qty input changes
                 container.querySelectorAll(".item-po-status-select").forEach(sel => {
                     sel.addEventListener("change", syncItemsToHiddenTextarea);
                 });
+                container.querySelectorAll(".item-po-qty-input").forEach(input => {
+                    input.addEventListener("input", syncItemsToHiddenTextarea);
+                    input.addEventListener("change", syncItemsToHiddenTextarea);
+                });
 
-                // Requirement 3 & 4: Event listener for Overall PO Status dropdown change
+                // Event listener for Overall PO Status dropdown change
                 if (overallSelect) {
                     overallSelect.onchange = () => {
                         const targetVal = overallSelect.value;
