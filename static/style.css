@@ -62,33 +62,33 @@ body.light-mode {
     --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.05);
 }
 
-/* Pink Mode (Soft Blush Pink Theme) Variables */
+/* Pink Mode (Aesthetic Rose Quartz & Lavender Blush Theme) Variables */
 body.pink-mode {
-    --bg-app: #fdf2f8;
-    --bg-sidebar: #fce7f3;
-    --bg-card: rgba(255, 255, 255, 0.88);
-    --border-color: rgba(244, 114, 182, 0.28);
-    --text-primary: #831843;
+    --bg-app: #fff0f5;
+    --bg-sidebar: #ffe4e6;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --border-color: rgba(244, 114, 182, 0.35);
+    --text-primary: #701a75;
     --text-secondary: #9d174d;
     
-    --primary: #ec4899;
-    --primary-hover: #db2777;
-    --primary-light: rgba(236, 72, 153, 0.15);
+    --primary: #fb7185;
+    --primary-hover: #f43f5e;
+    --primary-light: rgba(251, 113, 133, 0.18);
     
     --secondary: #ffffff;
-    --secondary-hover: #fbcfe8;
-    --secondary-border: rgba(244, 114, 182, 0.3);
+    --secondary-hover: #fecdd3;
+    --secondary-border: rgba(244, 114, 182, 0.4);
     
     --success: #10b981;
     --success-bg: rgba(16, 185, 129, 0.12);
     --warning: #f59e0b;
     --warning-bg: rgba(245, 158, 11, 0.12);
-    --danger: #e11d48;
-    --danger-bg: rgba(225, 29, 72, 0.12);
+    --danger: #f43f5e;
+    --danger-bg: rgba(244, 63, 94, 0.14);
     
-    --shadow-sm: 0 4px 10px rgba(244, 114, 182, 0.12);
-    --shadow-md: 0 10px 25px rgba(244, 114, 182, 0.18);
-    --shadow-lg: 0 20px 40px rgba(236, 72, 153, 0.2);
+    --shadow-sm: 0 4px 15px rgba(244, 114, 182, 0.15);
+    --shadow-md: 0 12px 30px rgba(244, 114, 182, 0.22);
+    --shadow-lg: 0 25px 50px rgba(236, 72, 153, 0.25);
 }
 
 
@@ -1750,105 +1750,153 @@ body.light-mode .dropdown-action-menu a:hover {
     40%, 60% { transform: translate3d(7px, 0, 0); }
 }
 
-/* --- PINK MODE COMPONENT OVERRIDES --- */
+/* --- ULTRA-AESTHETIC PINK MODE COMPONENT OVERRIDES --- */
 body.pink-mode .login-overlay {
-    background: radial-gradient(circle at center, #fce7f3 0%, #fbcfe8 100%) !important;
+    background: radial-gradient(circle at 30% 30%, #ffe4e6 0%, #fbcfe8 50%, #f472b6 100%) !important;
 }
 
 body.pink-mode .ambient-mesh .orb-1 {
-    background: radial-gradient(circle, rgba(244, 114, 182, 0.6) 0%, rgba(251, 113, 133, 0.25) 70%) !important;
+    background: radial-gradient(circle, rgba(251, 113, 133, 0.7) 0%, rgba(244, 114, 182, 0.3) 70%) !important;
 }
 
 body.pink-mode .ambient-mesh .orb-2 {
-    background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, rgba(244, 114, 182, 0.2) 70%) !important;
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, rgba(253, 164, 175, 0.25) 70%) !important;
 }
 
 body.pink-mode .ambient-mesh .orb-3 {
-    background: radial-gradient(circle, rgba(253, 164, 175, 0.45) 0%, rgba(244, 114, 182, 0.15) 70%) !important;
+    background: radial-gradient(circle, rgba(244, 114, 182, 0.5) 0%, rgba(251, 113, 133, 0.2) 70%) !important;
 }
 
 body.pink-mode .login-box {
-    background: rgba(255, 255, 255, 0.78) !important;
-    border: 1px solid rgba(244, 114, 182, 0.35) !important;
-    box-shadow: 0 25px 50px rgba(236, 72, 153, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(25px) !important;
+    -webkit-backdrop-filter: blur(25px) !important;
+    border: 2px solid rgba(244, 114, 182, 0.45) !important;
+    box-shadow: 0 30px 70px rgba(236, 72, 153, 0.28), 0 0 40px rgba(251, 113, 133, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+    border-radius: 28px !important;
 }
 
 body.pink-mode .login-logo h2 {
-    color: #831843 !important;
+    color: #701a75 !important;
 }
 
 body.pink-mode .login-logo h2 span,
 body.pink-mode .login-logo i {
-    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #ec4899 100%) !important;
+    background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 50%, #f43f5e 100%) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
+    filter: drop-shadow(0 4px 12px rgba(244, 63, 94, 0.35)) !important;
 }
 
 body.pink-mode .login-subtitle {
-    color: #9d174d !important;
+    color: #be185d !important;
+    letter-spacing: 3px !important;
 }
 
 body.pink-mode .btn-primary {
-    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #ec4899 100%) !important;
-    box-shadow: 0 8px 24px rgba(225, 29, 72, 0.35) !important;
+    background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 50%, #f43f5e 100%) !important;
+    border-radius: 50px !important;
+    font-size: 15px !important;
+    box-shadow: 0 10px 25px rgba(244, 63, 94, 0.4) !important;
 }
 
 body.pink-mode .btn-primary:hover {
-    box-shadow: 0 12px 30px rgba(225, 29, 72, 0.5) !important;
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 15px 35px rgba(244, 63, 94, 0.55) !important;
 }
 
 body.pink-mode .input-with-icon input {
-    background: rgba(255, 255, 255, 0.85) !important;
-    border: 1px solid rgba(244, 114, 182, 0.35) !important;
-    color: #831843 !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1.5px solid rgba(244, 114, 182, 0.4) !important;
+    border-radius: 16px !important;
+    color: #701a75 !important;
+}
+
+body.pink-mode .input-with-icon i {
+    color: #f43f5e !important;
 }
 
 body.pink-mode .input-with-icon input:focus {
     background: #ffffff !important;
     border-color: #f43f5e !important;
-    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.22) !important;
+    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.25) !important;
 }
 
 body.pink-mode .sidebar {
-    background-color: #fce7f3;
-    border-right-color: rgba(244, 114, 182, 0.28);
+    background: linear-gradient(180deg, #ffe4e6 0%, #fce7f3 100%);
+    border-right: 1px solid rgba(244, 114, 182, 0.35);
 }
 
 body.pink-mode .menu-item {
     color: #9d174d;
+    border-radius: 14px;
+    transition: all 0.25s ease;
+}
+
+body.pink-mode .menu-item i {
+    color: #f43f5e;
 }
 
 body.pink-mode .menu-item:hover,
 body.pink-mode .menu-item.active {
-    background-color: rgba(244, 114, 182, 0.22);
-    color: #831843;
+    background: linear-gradient(135deg, rgba(254, 205, 211, 0.8) 0%, rgba(251, 207, 232, 0.8) 100%);
+    color: #701a75;
+    box-shadow: 0 4px 15px rgba(244, 114, 182, 0.25);
+    font-weight: 700;
 }
 
 body.pink-mode .glass-card {
-    background-color: rgba(255, 255, 255, 0.88);
-    border-color: rgba(244, 114, 182, 0.28);
-    box-shadow: 0 8px 20px rgba(244, 114, 182, 0.12);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(244, 114, 182, 0.35);
+    box-shadow: 0 10px 25px rgba(244, 114, 182, 0.15);
+    border-radius: 20px;
+}
+
+body.pink-mode .glass-card:hover {
+    border-color: rgba(244, 114, 182, 0.6);
+    box-shadow: 0 15px 35px rgba(244, 114, 182, 0.25);
 }
 
 body.pink-mode .main-header {
-    background-color: rgba(253, 242, 248, 0.92);
-    border-bottom-color: rgba(244, 114, 182, 0.28);
+    background: rgba(255, 240, 245, 0.95);
+    border-bottom: 1px solid rgba(244, 114, 182, 0.3);
 }
 
 body.pink-mode table th {
-    background-color: #fbcfe8;
-    color: #831843;
+    background: linear-gradient(135deg, #fecdd3 0%, #fbcfe8 100%);
+    color: #701a75;
+    font-weight: 700;
 }
 
 body.pink-mode tr:hover td {
-    background-color: rgba(244, 114, 182, 0.12) !important;
+    background-color: rgba(244, 114, 182, 0.15) !important;
 }
 
 body.pink-mode .modal-box {
-    background: rgba(255, 255, 255, 0.96);
-    border-color: rgba(244, 114, 182, 0.38);
-    color: #831843;
+    background: rgba(255, 255, 255, 0.98);
+    border: 2px solid rgba(244, 114, 182, 0.45);
+    box-shadow: 0 25px 60px rgba(244, 63, 94, 0.25);
+    color: #701a75;
+    border-radius: 24px;
 }
+
+body.pink-mode .status-badge {
+    background: rgba(244, 114, 182, 0.18) !important;
+    color: #be185d !important;
+    border: 1px solid rgba(244, 114, 182, 0.4) !important;
+    font-weight: 700 !important;
+}
+
+body.pink-mode .stat-card-title {
+    color: #be185d;
+}
+
+body.pink-mode .stat-card-number {
+    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 
 
 
