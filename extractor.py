@@ -128,6 +128,35 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
                 
     return None
 
+def fix_truncated_challan_number(val_str, content):
+    """
+    Heals truncated Delivery Note / Delivery Challan numbers (e.g. '/26-27/116')
+    by searching the raw OCR content for the full string with its prefix (e.g. 'SKH/DC/26-27/116').
+    """
+    if not val_str:
+        return val_str
+        
+    clean_val = str(val_str).strip()
+    
+    # If the value starts with a slash or hyphen (e.g. "/26-27/116"), it's missing its prefix!
+    if clean_val.startswith('/') or clean_val.startswith('-'):
+        if content:
+            # Search content for any word ending with this string that has an alphanumeric prefix (e.g. SKH/DC/26-27/116)
+            escaped_tail = re.escape(clean_val)
+            match = re.search(r'\b([a-zA-Z0-9]+[a-zA-Z0-9/\-_]*' + escaped_tail + r')', content)
+            if match:
+                return match.group(1).strip()
+                
+            # Search near 'Delivery Note' / 'Challan' keywords in content
+            match_near = re.search(r'(?i)(?:delivery\s*note|delivery\s*challan|challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})', content)
+            if match_near:
+                return match_near.group(1).strip()
+
+        # If no prefix found in content, strip leading slashes/hyphens
+        clean_val = re.sub(r'^[/:#-]+\s*', '', clean_val).strip()
+
+    return clean_val
+
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
     Extracts Delivery Challan / Delivery Note Number from Azure Document Intelligence result JSON
@@ -135,6 +164,8 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
+
+    extracted_cand = None
 
     # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
     analyze_result = result_json.get("analyzeResult", {})
@@ -147,30 +178,39 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         if any(k in key_text for k in target_keys) and val_text:
             clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
             if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
-                return clean_val
+                extracted_cand = clean_val
+                break
 
-    # 2. Inspect Document Level Fields
-    documents = analyze_result.get("documents", [])
-    if documents:
-        fields = documents[0].get("fields", {})
-        target_fields = ["DeliveryNote", "DeliveryNoteNo", "DeliveryNoteNumber", "ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]
-        for field_key in target_fields:
-            if field_key in fields:
-                f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
-                clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
-                if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
-                    return clean_val
+    # 2. Inspect Document Level Fields if no KV candidate
+    if not extracted_cand:
+        documents = analyze_result.get("documents", [])
+        if documents:
+            fields = documents[0].get("fields", {})
+            target_fields = ["DeliveryNote", "DeliveryNoteNo", "DeliveryNoteNumber", "ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]
+            for field_key in target_fields:
+                if field_key in fields:
+                    f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
+                    clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
+                    if clean_val and clean_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                        extracted_cand = clean_val
+                        break
+
+    # If candidate found (or if we need OCR fallback), pass through truncation healer
+    if extracted_cand:
+        healed = fix_truncated_challan_number(extracted_cand, content)
+        if healed and not healed.startswith('/') and not healed.startswith('-'):
+            return healed
 
     if not content:
-        return None
+        return extracted_cand
         
     normalized_content = " ".join(str(content).split())
     
     # 3. Regex matching Delivery Note / Delivery Challan No patterns in OCR content
     patterns = [
-        r'(?i)(?:delivery\s*note|delivery\s*challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})',
-        r'(?i)\bchallan\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})',
-        r'(?i)\bd\.?c\.?\s*(?:no|number|num)\s*[\.:#-]+\s*([a-zA-Z0-9][a-zA-Z0-9/\-_]{2,35})'
+        r'(?i)(?:delivery\s*note|delivery\s*challan)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})',
+        r'(?i)\bchallan\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})',
+        r'(?i)\bd\.?c\.?\s*(?:no|number|num)\s*[\.:#-]+\s*([a-zA-Z0-9]+[a-zA-Z0-9/\-_]{2,35})'
     ]
     
     for pat in patterns:
@@ -180,7 +220,7 @@ def extract_challan_number(result_json_or_content, raw_content=None):
             if extracted_val and extracted_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'DATE', 'BILL']:
                 return extracted_val
                 
-    return None
+    return extracted_cand
 
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
