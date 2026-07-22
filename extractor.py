@@ -128,6 +128,54 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
                 
     return None
 
+def extract_challan_number(result_json_or_content, raw_content=None):
+    """
+    Extracts Delivery Challan Number from Azure Document Intelligence result JSON
+    (Key-Value pairs & document fields) or raw OCR text content.
+    """
+    result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
+    content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
+
+    # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
+    analyze_result = result_json.get("analyzeResult", {})
+    kv_pairs = analyze_result.get("keyValuePairs", [])
+    for kv in kv_pairs:
+        key_text = str(kv.get("key", {}).get("content", "")).lower()
+        val_text = str(kv.get("value", {}).get("content", "")).strip()
+        if ("challan" in key_text or "dc no" in key_text or "dc number" in key_text or "delivery challan" in key_text) and val_text:
+            if val_text.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                return val_text
+
+    # 2. Inspect Document Level Fields
+    documents = analyze_result.get("documents", [])
+    if documents:
+        fields = documents[0].get("fields", {})
+        for field_key in ["ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]:
+            if field_key in fields:
+                f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
+                if f_val and f_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-']:
+                    return f_val
+
+    if not content:
+        return None
+        
+    normalized_content = " ".join(str(content).split())
+    
+    # 3. Regex matching Challan No patterns in OCR content
+    patterns = [
+        r'(?i)(?:delivery\s*challan|challan|d\.?c\.?)\s*(?:no|number|num)?\s*[\.:#-]*\s*([a-zA-Z0-9/\-_]{3,35})',
+        r'(?i)(?:challan|delivery\s*challan)\s*[\.:#-]*\s*([a-zA-Z0-9/\-_]{3,35})'
+    ]
+    
+    for pat in patterns:
+        match = re.search(pat, normalized_content)
+        if match:
+            extracted_val = match.group(1).strip().rstrip('.,;:')
+            if extracted_val and extracted_val.upper() not in ['DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'DATE', 'BILL']:
+                return extracted_val
+                
+    return None
+
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
     Helper function to parse Azure Analyze Result JSON and map it to our target schema.
@@ -287,7 +335,8 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         challan_no = doc_no
     else:
         invoice_no = doc_no
-        challan_no = "DIRECT INVOICE"
+        extracted_challan = extract_challan_number(result, content)
+        challan_no = extracted_challan if extracted_challan else "DIRECT INVOICE"
 
     # Compute E-way Bill based on amount and scanned content
     eway_bill_val = "PENDING"
