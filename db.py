@@ -229,6 +229,14 @@ def init_db():
         except Exception:
             pass
     
+    # Clean up hardcoded mock ASN numbers from database
+    try:
+        cursor.execute("UPDATE documents SET asn_no = '' WHERE asn_no = 'ASN/26/000797'")
+        cursor.execute("UPDATE documents SET mode_of_transp = '' WHERE mode_of_transp = 'Tempo'")
+        conn.commit()
+    except Exception as clean_err:
+        print(f"[DB Init] Cleanup warning: {clean_err}")
+    
     # Create settings table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
