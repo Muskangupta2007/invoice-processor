@@ -139,6 +139,12 @@ PINCODE_PATTERN = re.compile(r'^\d{6}$')
 PHONE_PATTERN = re.compile(r'^\d{10}$')
 EWAY_PATTERN = re.compile(r'^\d{12}$')
 
+ADDRESS_WORDS = {
+    'VADODARA', 'BARODA', 'SURAT', 'AHMEDABAD', 'MUMBAI', 'PUNE', 'GUJARAT',
+    'MAHARASHTRA', 'DELHI', 'DESTINATION', 'DISPATCH', 'ADDRESS', 'ROAD', 'DIST',
+    'PINCODE', 'PIN', 'STATE', 'CITY', 'HAZIRA', 'INDIA'
+}
+
 def is_valid_challan_number(val):
     if not val:
         return False
@@ -150,8 +156,15 @@ def is_valid_challan_number(val):
     # MUST contain at least one digit (0-9) to be a valid document number
     if not re.search(r'\d', clean):
         return False
-    # Reject 6-digit pincodes (e.g. 390021), 10-digit phone numbers, and 12-digit Eway bill numbers
-    if PINCODE_PATTERN.match(clean) or PHONE_PATTERN.match(clean) or EWAY_PATTERN.match(clean):
+    # Reject strings containing 6-digit pincodes anywhere (e.g. VADODARA - 390021 or 390021)
+    if re.search(r'\b\d{6}\b', clean):
+        return False
+    # Reject strings containing 10-digit phone numbers or 12-digit Eway bill numbers
+    if PHONE_PATTERN.search(clean) or EWAY_PATTERN.search(clean):
+        return False
+    # Reject address/city strings
+    tokens = set(re.findall(r'[A-Z]+', clean))
+    if tokens & ADDRESS_WORDS:
         return False
     return True
 
