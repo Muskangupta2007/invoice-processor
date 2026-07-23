@@ -131,7 +131,7 @@ def extract_eway_bill_number(result_json_or_content, raw_content=None):
 INVALID_CHALLAN_WORDS = {
     'MODE/TERMS', 'MODE', 'TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER',
     'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'DESTINATION', 'BUYER', 'SUPPLIER',
-    'DIRECT INVOICE', 'N/A', 'NONE', 'NULL', '-', 'BILL', 'DETAILS', 'TERMS OF DELIVERY',
+    'N/A', 'NONE', 'NULL', '-', 'BILL', 'DETAILS', 'TERMS OF DELIVERY',
     'OF', 'NO', 'NO.', 'NUMBER', 'NUM', 'REF', 'REF.', 'OTHER', 'MODES/TERMS'
 }
 
@@ -196,7 +196,7 @@ def is_valid_challan_number(val):
     if PAYMENT_PATTERN.search(clean):
         return False
     # Reject date strings (e.g. 9-Jul-26, 14/07/2026, 09-07-2026)
-    if DATE_PATTERN.search(clean):
+    if parse_and_validate_date(clean):
         return False
     # Reject GSTIN / UIN / Tax registration numbers
     if 'GSTIN' in clean or 'GST' in clean or 'UIN' in clean or 'PAN' in clean or 'CIN' in clean:
@@ -267,6 +267,7 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
     """
     Directly extracts whatever line is written under 'Delivery Note' / 'Delivery Challan'
     in the invoice image/OCR text while strictly respecting column spatial alignment.
+    Supports returning 'DIRECT INVOICE' if explicitly written under Delivery Note.
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
@@ -312,6 +313,8 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
                             continue # Skip line belonging to right column (e.g. Mode/Terms of Payment)
 
                     clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
+                    if "DIRECT INVOICE" in clean_nxt.upper():
+                        return "DIRECT INVOICE"
                     if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER', 'DISPATCH', 'DESTINATION']):
                         continue
                     if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.match(clean_nxt):
@@ -332,6 +335,8 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
         if any(k in l_lower for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
             for nxt_text in ocr_lines[idx + 1: idx + 6]:
                 clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
+                if "DIRECT INVOICE" in clean_nxt.upper():
+                    return "DIRECT INVOICE"
                 if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER']):
                     continue
                 if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.match(clean_nxt):
@@ -346,9 +351,10 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
 
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
-    Extracts Delivery Challan / Delivery Note Number.
-    Strictly extracts what is written under 'Delivery Note' / 'Delivery Challan'.
-    If nothing valid is written under 'Delivery Note', leaves it 100% BLANK ('').
+    Extracts Delivery Challan / Delivery Note Number according to rules:
+    - If Delivery Note contains 'DIRECT INVOICE', returns 'DIRECT INVOICE'.
+    - If Delivery Note contains a valid challan number, returns that challan number.
+    - If Delivery Note is blank, leaves it 100% BLANK ('').
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
@@ -356,8 +362,11 @@ def extract_challan_number(result_json_or_content, raw_content=None):
 
     # 1. DIRECTLY extract whatever is written under "Delivery Note" / "Delivery Challan"
     under_delivery_note = extract_line_under_delivery_note(result_json, norm_content)
-    if under_delivery_note and is_valid_challan_number(under_delivery_note):
-        return under_delivery_note
+    if under_delivery_note:
+        if "DIRECT INVOICE" in under_delivery_note.upper():
+            return "DIRECT INVOICE"
+        if is_valid_challan_number(under_delivery_note):
+            return under_delivery_note
 
     # 2. Strict Key-Value Pairs check if present for "delivery note" key
     analyze_result = get_analyze_result(result_json)
@@ -369,11 +378,16 @@ def extract_challan_number(result_json_or_content, raw_content=None):
         val_text = str(kv.get("value", {}).get("content", "")).strip()
         if any(k in key_text for k in target_keys) and val_text:
             clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
+            if "DIRECT INVOICE" in clean_val.upper():
+                return "DIRECT INVOICE"
             healed = fix_truncated_challan_number(clean_val, norm_content)
             if healed and is_valid_challan_number(healed):
                 return healed
             if is_valid_challan_number(clean_val):
                 return clean_val
+
+    # IF NOTHING VALID WRITTEN UNDER DELIVERY NOTE, LEAVE BLANK ('')
+    return None
 
 INVALID_MODE_WORDS = {
     'DATE', 'DATED', 'DOC', 'NO', 'NUMBER', 'REF', 'DESTINATION', 'TERMS', 'DELIVERY',
