@@ -156,10 +156,18 @@ MONTH_WORDS = {
     'OCTOBER', 'NOVEMBER', 'DECEMBER', 'DATED', 'DATE'
 }
 
+PAYMENT_TERMS_WORDS = {
+    'DAYS', 'DAY', 'NET', 'CREDIT', 'ADVANCE', 'IMMEDIATE', 'CASH', 'PDC', 'COD',
+    'PAYMENT', 'TERMS', 'MODE', 'CHEQUE', 'ONLINE', 'NEFT', 'RTGS', 'UPI', 'AGAINST',
+    'DAYS/PAYMENT', 'MODE/TERMS'
+}
+
 DATE_PATTERN = re.compile(
     r'\b(?:\d{1,2}[-/\.\s]+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|\d{1,2})[-/\.\s]+\d{2,4}|\d{4}[-/\.\s]+\d{1,2}[-/\.\s]+\d{1,2})\b',
     re.IGNORECASE
 )
+
+PAYMENT_PATTERN = re.compile(r'\b\d{1,3}\s*(?:DAYS?|DAY)\b', re.IGNORECASE)
 
 GSTIN_PATTERN = re.compile(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', re.IGNORECASE)
 
@@ -169,7 +177,10 @@ def is_valid_challan_number(val):
     clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper().rstrip('.,;:')
     if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
-    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/']):
+    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/', '45 ', '30 ', '60 ']):
+        return False
+    # Reject payment terms (e.g. 45 Days, 30 Days, Net 30, Cash)
+    if PAYMENT_PATTERN.search(clean):
         return False
     # Reject date strings (e.g. 9-Jul-26, 14/07/2026, 09-07-2026)
     if DATE_PATTERN.search(clean):
@@ -188,9 +199,9 @@ def is_valid_challan_number(val):
     # Reject strings containing 10-digit phone numbers or 12-digit Eway bill numbers
     if PHONE_PATTERN.search(clean) or EWAY_PATTERN.search(clean):
         return False
-    # Reject address/city/month strings
+    # Reject address/city/month/payment strings
     tokens = set(re.findall(r'[A-Z]+', clean))
-    if tokens & ADDRESS_WORDS or tokens & TAX_LABEL_WORDS or tokens & MONTH_WORDS:
+    if tokens & ADDRESS_WORDS or tokens & TAX_LABEL_WORDS or tokens & MONTH_WORDS or tokens & PAYMENT_TERMS_WORDS:
         return False
     return True
 

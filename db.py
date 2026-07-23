@@ -181,6 +181,10 @@ def clean_challan_no(val, doc_no=None):
 
     upper_val = s_val.upper()
 
+    # Reject payment terms (e.g. 45 Days, 30 Days)
+    if re.search(r'\b\d{1,3}\s*(?:DAYS?|DAY)\b', upper_val) or any(w in upper_val for w in ['45 DAYS', '30 DAYS', '60 DAYS', '90 DAYS', '15 DAYS', 'NET 30', 'IMMEDIATE']):
+        return ""
+
     # Reject date strings (e.g. 9-Jul-26, 14/07/2026)
     if re.search(r'\b\d{1,2}[-/\.\s]+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|[0-9]{1,2})[-/\.\s]+\d{2,4}\b', upper_val):
         return ""
@@ -294,7 +298,7 @@ def init_db():
         cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
         cursor.execute("UPDATE documents SET eway_bill = 'N/A' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) < 50000")
         cursor.execute("UPDATE documents SET challan_no = 'SKH/DC/26-27/116' WHERE doc_no = 'SKH/26-27/224' OR challan_no LIKE '%390021%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%'")
-        cursor.execute("UPDATE documents SET challan_no = '' WHERE (UPPER(TRIM(challan_no)) IN ('DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.') OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%' OR challan_no LIKE '%UIN%' OR challan_no LIKE '%Jul%' OR challan_no LIKE '%Jan%' OR challan_no LIKE '%Feb%' OR challan_no LIKE '%Mar%' OR challan_no LIKE '%Apr%' OR challan_no LIKE '%May%' OR challan_no LIKE '%Jun%' OR challan_no LIKE '%Aug%' OR challan_no LIKE '%Sep%' OR challan_no LIKE '%Oct%' OR challan_no LIKE '%Nov%' OR challan_no LIKE '%Dec%') AND doc_no != 'SKH/26-27/224'")
+        cursor.execute("UPDATE documents SET challan_no = '' WHERE (UPPER(TRIM(challan_no)) IN ('DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.', '45 DAYS', '30 DAYS') OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%' OR challan_no LIKE '%UIN%' OR challan_no LIKE '%Jul%' OR challan_no LIKE '%Jan%' OR challan_no LIKE '%Feb%' OR challan_no LIKE '%Mar%' OR challan_no LIKE '%Apr%' OR challan_no LIKE '%May%' OR challan_no LIKE '%Jun%' OR challan_no LIKE '%Aug%' OR challan_no LIKE '%Sep%' OR challan_no LIKE '%Oct%' OR challan_no LIKE '%Nov%' OR challan_no LIKE '%Dec%' OR challan_no LIKE '%Days%' OR challan_no LIKE '%DAYS%') AND doc_no != 'SKH/26-27/224'")
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")
