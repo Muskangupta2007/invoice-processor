@@ -171,6 +171,8 @@ PAYMENT_PATTERN = re.compile(r'\b\d{1,3}\s*(?:DAYS?|DAY)\b', re.IGNORECASE)
 
 GSTIN_PATTERN = re.compile(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', re.IGNORECASE)
 
+EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+
 def is_valid_challan_number(val):
     if not val:
         return False
@@ -178,6 +180,9 @@ def is_valid_challan_number(val):
     if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
     if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/', '45 ', '30 ', '60 ']):
+        return False
+    # Reject email addresses and URLs
+    if '@' in clean or EMAIL_PATTERN.search(clean) or 'HTTP' in clean or 'WWW' in clean:
         return False
     # Reject standalone short pure numbers without slashes/letters (e.g. "45", "30", "60", "15")
     if clean.isdigit() and (len(clean) <= 3 or int(clean) <= 100):
@@ -331,87 +336,36 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
 
 def extract_challan_number(result_json_or_content, raw_content=None):
     """
-    Extracts Delivery Challan / Delivery Note Number from Azure Document Intelligence result JSON
-    (Key-Value pairs & document fields) or raw OCR text content.
+    Extracts Delivery Challan / Delivery Note Number.
+    Strictly extracts what is written under 'Delivery Note' / 'Delivery Challan'.
+    If nothing valid is written under 'Delivery Note', leaves it 100% BLANK ('').
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
-
     norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
-    
-    # 0. DIRECTLY extract whatever is written under "Delivery Note" / "Delivery Challan"
+
+    # 1. DIRECTLY extract whatever is written under "Delivery Note" / "Delivery Challan"
     under_delivery_note = extract_line_under_delivery_note(result_json, norm_content)
-    if under_delivery_note:
+    if under_delivery_note and is_valid_challan_number(under_delivery_note):
         return under_delivery_note
 
-    extracted_cand = None
-
-    # 1. Inspect Azure Document Intelligence Key-Value Pairs if present
+    # 2. Strict Key-Value Pairs check if present for "delivery note" key
     analyze_result = get_analyze_result(result_json)
     kv_pairs = analyze_result.get("keyValuePairs", [])
-    target_keys = ["delivery note", "challan", "dc no", "dc number", "delivery challan", "dc #", "challan #"]
+    target_keys = ["delivery note", "delivery challan"]
     
     for kv in kv_pairs:
         key_text = str(kv.get("key", {}).get("content", "")).lower()
         val_text = str(kv.get("value", {}).get("content", "")).strip()
         if any(k in key_text for k in target_keys) and val_text:
             clean_val = re.sub(r'^[.:#-]+\s*', '', val_text).strip()
-            if is_valid_challan_number(clean_val) or clean_val.startswith('/') or clean_val.startswith('-'):
-                extracted_cand = clean_val
-                break
+            healed = fix_truncated_challan_number(clean_val, norm_content)
+            if healed and is_valid_challan_number(healed):
+                return healed
+            if is_valid_challan_number(clean_val):
+                return clean_val
 
-    # 2. Inspect Document Level Fields if no KV candidate
-    if not extracted_cand:
-        documents = analyze_result.get("documents", [])
-        if documents:
-            fields = documents[0].get("fields", {})
-            target_fields = ["DeliveryNote", "DeliveryNoteNo", "DeliveryNoteNumber", "ChallanNumber", "ChallanNo", "DeliveryChallanNumber", "DeliveryChallanNo", "DCNo", "DCNumber"]
-            for field_key in target_fields:
-                if field_key in fields:
-                    f_val = str(fields[field_key].get("valueString") or fields[field_key].get("content") or "").strip()
-                    clean_val = re.sub(r'^[.:#-]+\s*', '', f_val).strip()
-                    if is_valid_challan_number(clean_val) or clean_val.startswith('/') or clean_val.startswith('-'):
-                        extracted_cand = clean_val
-                        break
-
-    # If candidate found (e.g. '/26-27/116' or 'SKH/DC/26-27/116'), heal truncation using norm_content
-    if extracted_cand:
-        healed = fix_truncated_challan_number(extracted_cand, norm_content)
-        if healed and is_valid_challan_number(healed):
-            return healed
-
-    if not norm_content:
-        return None
-
-    # 3. Token-scanning around "Delivery Note" / "Delivery Challan" / "Challan" keywords in OCR content
-    # Pass 1: Prioritize candidates containing slashes '/' or hyphens '-' with letters & digits (e.g. SKH/DC/26-27/116)
-    for kw in ["delivery note", "delivery challan", "challan no", "challan number", "dc no", "dc number", "challan"]:
-        kw_idx = norm_content.lower().find(kw)
-        if kw_idx != -1:
-            sub_text = norm_content[kw_idx + len(kw): kw_idx + len(kw) + 300]
-            tokens = re.split(r'[\s,\t\n\r]+', sub_text)
-            for tok in tokens:
-                clean_tok = tok.strip().rstrip('.,;:')
-                healed_tok = fix_truncated_challan_number(clean_tok, norm_content)
-                if healed_tok and ('/' in healed_tok or '-' in healed_tok) and is_valid_challan_number(healed_tok):
-                    return healed_tok
-                if ('/' in clean_tok or '-' in clean_tok) and is_valid_challan_number(clean_tok):
-                    return clean_tok
-
-    # Pass 2: Fallback to any valid candidate in window
-    for kw in ["delivery note", "delivery challan", "challan no", "challan number", "dc no", "dc number", "challan"]:
-        kw_idx = norm_content.lower().find(kw)
-        if kw_idx != -1:
-            sub_text = norm_content[kw_idx + len(kw): kw_idx + len(kw) + 300]
-            tokens = re.split(r'[\s,\t\n\r]+', sub_text)
-            for tok in tokens:
-                clean_tok = tok.strip().rstrip('.,;:')
-                healed_tok = fix_truncated_challan_number(clean_tok, norm_content)
-                if healed_tok and is_valid_challan_number(healed_tok):
-                    return healed_tok
-                if is_valid_challan_number(clean_tok):
-                    return clean_tok
-
+    # IF NOTHING VALID WRITTEN UNDER DELIVERY NOTE, LEAVE BLANK ('')
     return None
 
 def parse_azure_invoice_result(result, doc_type="Invoice"):
