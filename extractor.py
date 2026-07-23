@@ -378,6 +378,93 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     # IF NOTHING VALID WRITTEN UNDER DELIVERY NOTE, LEAVE BLANK ('')
     return None
 
+DATE_REGEX = re.compile(
+    r'\b(\d{1,2})[-/\.\s]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|\d{1,2})[-/\.\s]+(\d{2,4})\b',
+    re.IGNORECASE
+)
+
+MONTH_MAP = {
+    'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
+    'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12',
+    'JANUARY': '01', 'FEBRUARY': '02', 'MARCH': '03', 'APRIL': '04', 'JUNE': '06',
+    'JULY': '07', 'AUGUST': '08', 'SEPTEMBER': '09', 'OCTOBER': '10', 'NOVEMBER': '11', 'DECEMBER': '12'
+}
+
+def format_date_str(date_str):
+    if not date_str:
+        return None
+    match = DATE_REGEX.search(str(date_str))
+    if match:
+        day, month_raw, year_raw = match.groups()
+        day = day.zfill(2)
+        month_upper = month_raw.upper()
+        if month_upper in MONTH_MAP:
+            month = MONTH_MAP[month_upper]
+        elif month_raw.isdigit():
+            month = month_raw.zfill(2)
+        else:
+            return str(date_str).strip()
+            
+        if len(year_raw) == 2:
+            year = "20" + year_raw
+        else:
+            year = year_raw
+            
+        return f"{year}-{month}-{day}"
+    return str(date_str).strip()
+
+def extract_true_invoice_date(result_json, content, default_date=None):
+    """
+    Directly extracts the Invoice Date from the top-right header box near Invoice No. / top 'Dated'.
+    Avoids picking lower Buyer Order dates (e.g. 9-Jul-26) or misread dates.
+    """
+    analyze_result = get_analyze_result(result_json)
+    pages = analyze_result.get("pages", [])
+    
+    # 1. Spatial Inspection: Look at top 40% of page
+    for page in pages:
+        lines = page.get("lines", [])
+        page_h = float(page.get("height") or 1.0)
+        
+        top_dated_indices = []
+        for idx, line in enumerate(lines):
+            line_text = str(line.get("content") or "").strip().lower()
+            poly = line.get("polygon") or line.get("boundingBox") or []
+            if poly and len(poly) >= 8:
+                y_center = sum([poly[i] for i in range(1, 8, 2)]) / 4.0
+            elif poly and len(poly) == 4:
+                y_center = poly[1] + poly[3]/2.0
+            else:
+                y_center = 0.0
+                
+            if y_center <= page_h * 0.4:
+                if "dated" in line_text or "invoice date" in line_text or "invoice no" in line_text:
+                    top_dated_indices.append(idx)
+                    
+        for hdr_idx in top_dated_indices:
+            for nxt_line in lines[hdr_idx: hdr_idx + 6]:
+                nxt_text = str(nxt_line.get("content") or "").strip()
+                date_match = DATE_REGEX.search(nxt_text)
+                if date_match:
+                    formatted = format_date_str(date_match.group(0))
+                    if formatted:
+                        return formatted
+
+    # 2. Line-by-line OCR content scanning
+    norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
+    ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
+    for idx, l_text in enumerate(ocr_lines[:15]):
+        l_lower = l_text.lower()
+        if "dated" in l_lower or "invoice date" in l_lower:
+            for nxt_text in ocr_lines[idx: idx + 4]:
+                date_match = DATE_REGEX.search(nxt_text)
+                if date_match:
+                    formatted = format_date_str(date_match.group(0))
+                    if formatted:
+                        return formatted
+
+    return default_date
+
 def parse_azure_invoice_result(result, doc_type="Invoice"):
     """
     Helper function to parse Azure Analyze Result JSON and map it to our target schema.
@@ -530,7 +617,8 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         amount = 0.0
 
     doc_no = get_field_val("InvoiceId")
-    doc_date = get_field_val("InvoiceDate", "valueDate")
+    azure_date = get_field_val("InvoiceDate", "valueDate")
+    doc_date = extract_true_invoice_date(result, content, default_date=azure_date)
     
     if doc_type == "Challan":
         invoice_no = ""
