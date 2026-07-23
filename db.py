@@ -195,48 +195,60 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS documents (
-            company TEXT NOT NULL,
-            doc_type TEXT NOT NULL,
-            doc_no TEXT NOT NULL,
-            doc_date TEXT,
-            invoice_no TEXT,
-            challan_no TEXT,
-            bill_to TEXT,
-            po_wo_no TEXT,
-            item_description TEXT,
-            amount REAL,
-            eway_bill TEXT,
-            eway_bill_no TEXT,
-            asn_no TEXT,
-            mode_of_transp TEXT,
-            dock_code TEXT,
-            delivery_date TEXT,
-            delivery_site TEXT,
-            mrn_status TEXT DEFAULT 'PENDING',
-            mrn_date TEXT,
-            mrn_no TEXT,
-            remarks TEXT,
-            deliver_qty TEXT,
-            uom TEXT,
-            unit_price TEXT,
-            po_status TEXT,
-            po_qty TEXT,
-            PRIMARY KEY (company, doc_type, doc_no)
-        )
-    """)
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS documents (
+                company TEXT NOT NULL,
+                doc_type TEXT NOT NULL,
+                doc_no TEXT NOT NULL,
+                doc_date TEXT,
+                invoice_no TEXT,
+                challan_no TEXT,
+                bill_to TEXT,
+                po_wo_no TEXT,
+                item_description TEXT,
+                amount REAL,
+                eway_bill TEXT,
+                eway_bill_no TEXT,
+                asn_no TEXT,
+                mode_of_transp TEXT,
+                dock_code TEXT,
+                delivery_date TEXT,
+                delivery_site TEXT,
+                mrn_status TEXT DEFAULT 'PENDING',
+                mrn_date TEXT,
+                mrn_no TEXT,
+                remarks TEXT,
+                deliver_qty TEXT,
+                uom TEXT,
+                unit_price TEXT,
+                po_status TEXT,
+                po_qty TEXT,
+                PRIMARY KEY (company, doc_type, doc_no)
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Init] documents table warning: {e}")
+        try: conn.rollback()
+        except Exception: pass
     
     # Table for tracking user-deleted documents to permanently prevent background sync from resurrecting them
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS deleted_documents (
-            company TEXT NOT NULL,
-            doc_type TEXT NOT NULL,
-            doc_no TEXT NOT NULL,
-            deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (company, doc_type, doc_no)
-        )
-    """)
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_documents (
+                company TEXT NOT NULL,
+                doc_type TEXT NOT NULL,
+                doc_no TEXT NOT NULL,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (company, doc_type, doc_no)
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[DB Init] deleted_documents table warning: {e}")
+        try: conn.rollback()
+        except Exception: pass
     
     # Perform schema migrations for new columns
     for col, col_type in [
@@ -258,8 +270,10 @@ def init_db():
     ]:
         try:
             cursor.execute(f"ALTER TABLE documents ADD COLUMN {col} {col_type}")
+            conn.commit()
         except Exception:
-            pass
+            try: conn.rollback()
+            except Exception: pass
     
     # Clean up hardcoded mock ASN numbers and enforce strict E-Way Bill and Challan No status rules in database
     try:
@@ -272,21 +286,26 @@ def init_db():
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")
+        try: conn.rollback()
+        except Exception: pass
     
     # Create settings table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'admin')")
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'invosync2026')")
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('settings_password', 'settings2026')")
+        conn.commit()
+    except Exception as set_err:
+        print(f"[DB Init] settings warning: {set_err}")
+        try: conn.rollback()
+        except Exception: pass
     
-    # Seed default admin credentials
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'admin')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'invosync2026')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('settings_password', 'settings2026')")
-    
-    conn.commit()
     conn.close()
     
     start_excel_watcher()
