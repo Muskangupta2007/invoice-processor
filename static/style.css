@@ -65,8 +65,8 @@ body.light-mode {
 /* Pink Mode (Aesthetic Rose Quartz & Lavender Blush Theme) Variables */
 body.pink-mode {
     --bg-app: #fff0f5;
-    --bg-sidebar: #ffe4e6;
-    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-sidebar: rgba(254, 228, 230, 0.88);
+    --bg-card: rgba(255, 255, 255, 0.94);
     --border-color: rgba(244, 114, 182, 0.35);
     --text-primary: #701a75;
     --text-secondary: #9d174d;
@@ -89,13 +89,42 @@ body.pink-mode {
     --shadow-sm: 0 4px 15px rgba(244, 114, 182, 0.15);
     --shadow-md: 0 12px 30px rgba(244, 114, 182, 0.22);
     --shadow-lg: 0 25px 50px rgba(236, 72, 153, 0.25);
+
+    background: 
+        linear-gradient(135deg, rgba(255, 240, 245, 0.75) 0%, rgba(254, 228, 230, 0.85) 100%),
+        url('rose_quartz_bg.png') center/cover no-repeat fixed !important;
+}
+
+/* Floating Rose Quartz & Gem Silhouettes */
+body.pink-mode .main-content::before {
+    content: "";
+    position: fixed;
+    bottom: -10px;
+    right: 10px;
+    width: 350px;
+    height: 450px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="%23f43f5e" opacity="0.16"><polygon points="50,0 80,30 50,120 20,30"/><polygon points="50,0 65,30 35,30"/><polygon points="20,30 35,30 50,120"/><polygon points="80,30 65,30 50,120"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.pink-mode .main-content::after {
+    content: "";
+    position: fixed;
+    top: 50px;
+    right: -20px;
+    width: 260px;
+    height: 300px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%23fb7185" opacity="0.18"><circle cx="50" cy="50" r="40"/><circle cx="30" cy="30" r="15"/><circle cx="70" cy="70" r="20"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
 }
 
 /* Brown Mode (Warm Espresso & Caramel Theme) Variables */
 body.brown-mode {
     --bg-app: #f7f1ec;
-    --bg-sidebar: #ebdcd0;
-    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-sidebar: rgba(235, 220, 208, 0.88);
+    --bg-card: rgba(255, 255, 255, 0.94);
     --border-color: rgba(160, 82, 45, 0.3);
     --text-primary: #4a2e1b;
     --text-secondary: #7c5237;
@@ -118,6 +147,35 @@ body.brown-mode {
     --shadow-sm: 0 4px 12px rgba(92, 61, 46, 0.12);
     --shadow-md: 0 10px 25px rgba(92, 61, 46, 0.18);
     --shadow-lg: 0 20px 45px rgba(74, 46, 27, 0.22);
+
+    background: 
+        linear-gradient(135deg, rgba(247, 241, 236, 0.75) 0%, rgba(235, 220, 208, 0.85) 100%),
+        url('espresso_bg.png') center/cover no-repeat fixed !important;
+}
+
+/* Floating Coffee Beans & Steam Swirl Silhouettes */
+body.brown-mode .main-content::before {
+    content: "";
+    position: fixed;
+    bottom: -10px;
+    right: 15px;
+    width: 340px;
+    height: 440px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="%238b5e3c" opacity="0.18"><path d="M50 20 C20 20 20 60 50 100 C80 60 80 20 50 20 Z M50 30 C55 45 45 75 50 90 C45 75 55 45 50 30 Z"/><path d="M20 70 C5 70 5 90 20 110 C35 90 35 70 20 70 Z M20 75 C23 83 17 97 20 105 C17 97 23 83 20 75 Z"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.brown-mode .main-content::after {
+    content: "";
+    position: fixed;
+    top: 50px;
+    right: -20px;
+    width: 270px;
+    height: 310px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%23b87333" opacity="0.16"><path d="M30 80 C20 60 40 40 30 20 C25 10 35 0 40 0 M50 80 C40 60 60 40 50 20 C45 10 55 0 60 0 M70 80 C60 60 80 40 70 20 C65 10 75 0 80 0" stroke="%23b87333" stroke-width="6" fill="none"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
 }
 
 /* Tropical Mode (Sunset Emerald & Palm Oasis Theme) Variables */
