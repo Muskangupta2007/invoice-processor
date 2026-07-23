@@ -145,13 +145,25 @@ ADDRESS_WORDS = {
     'PINCODE', 'PIN', 'STATE', 'CITY', 'HAZIRA', 'INDIA'
 }
 
+TAX_LABEL_WORDS = {
+    'GSTIN', 'GST', 'UIN', 'PAN', 'CIN', 'TAX', 'REGISTRATION', 'STATE', 'CODE',
+    'GSTIN/UIN', 'ARN', 'SAC', 'HSN', 'IRN'
+}
+
+GSTIN_PATTERN = re.compile(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', re.IGNORECASE)
+
 def is_valid_challan_number(val):
     if not val:
         return False
     clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper().rstrip('.,;:')
     if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
-    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/']):
+    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/']):
+        return False
+    # Reject GSTIN / UIN / Tax registration numbers
+    if 'GSTIN' in clean or 'GST' in clean or 'UIN' in clean or 'PAN' in clean or 'CIN' in clean:
+        return False
+    if GSTIN_PATTERN.search(clean):
         return False
     # MUST contain at least one digit (0-9) to be a valid document number
     if not re.search(r'\d', clean):
@@ -164,7 +176,7 @@ def is_valid_challan_number(val):
         return False
     # Reject address/city strings
     tokens = set(re.findall(r'[A-Z]+', clean))
-    if tokens & ADDRESS_WORDS:
+    if tokens & ADDRESS_WORDS or tokens & TAX_LABEL_WORDS:
         return False
     return True
 
