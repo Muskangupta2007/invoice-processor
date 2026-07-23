@@ -1994,7 +1994,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (document.getElementById("edit-challan-no-group")) {
                 document.getElementById("edit-challan-no-group").style.display = "block";
-                document.getElementById("edit-challan-no").value = doc.challan_no || "DIRECT INVOICE";
+                document.getElementById("edit-challan-no").value = doc.challan_no || "";
             }
         }
         
@@ -2031,7 +2031,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 updatedData.asn_no = document.getElementById("edit-asn-no").value.trim();
             }
             if (document.getElementById("edit-challan-no")) {
-                updatedData.challan_no = document.getElementById("edit-challan-no").value.trim() || "DIRECT INVOICE";
+                updatedData.challan_no = document.getElementById("edit-challan-no").value.trim();
             }
 
             // Optimistic local update

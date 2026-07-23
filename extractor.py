@@ -496,7 +496,7 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
     else:
         invoice_no = doc_no
         extracted_challan = extract_challan_number(result, content)
-        challan_no = extracted_challan if extracted_challan else "DIRECT INVOICE"
+        challan_no = extracted_challan if extracted_challan else ""
 
     # Compute E-way Bill based on amount and scanned content
     eway_bill_val = "PENDING"
