@@ -378,90 +378,203 @@ def extract_challan_number(result_json_or_content, raw_content=None):
     # IF NOTHING VALID WRITTEN UNDER DELIVERY NOTE, LEAVE BLANK ('')
     return None
 
-DATE_REGEX = re.compile(
-    r'\b(\d{1,2})[-/\.\s]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|\d{1,2})[-/\.\s]+(\d{2,4})\b',
-    re.IGNORECASE
-)
-
 MONTH_MAP = {
-    'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
-    'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12',
-    'JANUARY': '01', 'FEBRUARY': '02', 'MARCH': '03', 'APRIL': '04', 'JUNE': '06',
-    'JULY': '07', 'AUGUST': '08', 'SEPTEMBER': '09', 'OCTOBER': '10', 'NOVEMBER': '11', 'DECEMBER': '12'
+    'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+    'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12,
+    'JANUARY': 1, 'FEBRUARY': 2, 'MARCH': 3, 'APRIL': 4, 'JUNE': 6,
+    'JULY': 7, 'AUGUST': 8, 'SEPTEMBER': 9, 'OCTOBER': 10, 'NOVEMBER': 11, 'DECEMBER': 12
 }
+
+def parse_and_validate_date(text):
+    """
+    Strictly parses and validates whether a text string contains a valid calendar date.
+    Rejects invalid months (e.g. >12), invalid days, 3-digit years (e.g. '279'),
+    or dates embedded in invoice numbers like 'SKH/26-27/279'.
+    Returns 'YYYY-MM-DD' if valid, else None.
+    """
+    if not text:
+        return None
+    text_str = str(text).strip()
+
+    # 1. ISO format: YYYY-MM-DD
+    iso_match = re.search(r'\b(19\d\d|20\d\d)[-/\.](0?[1-9]|1[0-2])[-/\.](0?[1-9]|[12]\d|3[01])\b', text_str)
+    if iso_match:
+        y, m, d = int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3))
+        try:
+            return datetime(y, m, d).strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+
+    # 2. Text month format: DD-MMM-YY / DD MMM YYYY / DD-MMM-YYYY (e.g. 23-Jul-26, 23 July 2026)
+    text_month_pat = re.compile(
+        r'\b(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[-/\.\s]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[-/\.\s]+(\d{2}|\d{4})\b',
+        re.IGNORECASE
+    )
+    m = text_month_pat.search(text_str)
+    if m:
+        day_str, month_str, year_str = m.groups()
+        day = int(day_str)
+        month = MONTH_MAP[month_str.upper()]
+        year = int(year_str)
+        if len(year_str) == 2:
+            year = 2000 + year
+        try:
+            return datetime(year, month, day).strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+
+    # 3. Numeric format: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY or DD/MM/YY
+    numeric_pat = re.compile(
+        r'\b(0?[1-9]|[12]\d|3[01])[-/\.](0?[1-9]|1[0-2])[-/\.](\d{2}|\d{4})\b'
+    )
+    for m in numeric_pat.finditer(text_str):
+        d_str, m_str, y_str = m.groups()
+        start, end = m.span()
+        # Reject if preceded or followed by slash/dash as part of an invoice sequence (e.g. /26-27/279 or POD/26/000956)
+        if start > 0 and text_str[start - 1] in '/-':
+            continue
+        if end < len(text_str) and text_str[end] in '/-':
+            continue
+
+        day = int(d_str)
+        month = int(m_str)
+        year = int(y_str)
+        if len(y_str) == 2:
+            year = 2000 + year
+        try:
+            return datetime(year, month, day).strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+
+    return None
 
 def format_date_str(date_str):
     if not date_str:
         return None
-    match = DATE_REGEX.search(str(date_str))
-    if match:
-        day, month_raw, year_raw = match.groups()
-        day = day.zfill(2)
-        month_upper = month_raw.upper()
-        if month_upper in MONTH_MAP:
-            month = MONTH_MAP[month_upper]
-        elif month_raw.isdigit():
-            month = month_raw.zfill(2)
-        else:
-            return str(date_str).strip()
-            
-        if len(year_raw) == 2:
-            year = "20" + year_raw
-        else:
-            year = year_raw
-            
-        return f"{year}-{month}-{day}"
-    return str(date_str).strip()
+    return parse_and_validate_date(date_str) or str(date_str).strip()
 
 def extract_true_invoice_date(result_json, content, default_date=None):
     """
-    Directly extracts the Invoice Date from the top-right header box near Invoice No. / top 'Dated'.
-    Avoids picking lower Buyer Order dates (e.g. 9-Jul-26) or misread dates.
+    Directly extracts the true Invoice Date from:
+    0. Azure InvoiceDate field raw OCR text content (rejecting Azure's faulty normalized valueDate if misread).
+    1. Azure table cells (extracting from the exact 'Dated' box attached on the side of 'Invoice No.').
+    2. Key-value pairs.
+    3. Spatial side-by-side line layout bounding boxes.
+    4. Top OCR text content lines.
+    Avoids picking lower Buyer Order dates (e.g. 21-Jul-26) or misreading invoice numbers (e.g. SKH/26-27/279).
     """
+    result_json = result_json if isinstance(result_json, dict) else {}
     analyze_result = get_analyze_result(result_json)
+
+    # 0. Check Azure Document Level 'InvoiceDate' field raw OCR text content first
+    documents = analyze_result.get("documents", [])
+    if documents:
+        fields = documents[0].get("fields", {})
+        inv_date_field = fields.get("InvoiceDate", {})
+        raw_inv_date_text = inv_date_field.get("content") or inv_date_field.get("valueString")
+        if raw_inv_date_text:
+            valid = parse_and_validate_date(raw_inv_date_text)
+            if valid:
+                return valid
+
+    # 1. Table Spatial Box Inspection (Highest Priority: exact 'Dated' box on the side of 'Invoice No.')
+    tables = analyze_result.get("tables", [])
+    for tbl in tables:
+        cells = tbl.get("cells", [])
+        inv_no_row = None
+        dated_col_idx = None
+
+        # Pass A: Look for header row with 'Invoice No.' and 'Dated'
+        for c in cells:
+            cell_text = str(c.get("content") or "").strip().lower()
+            row_idx = c.get("rowIndex")
+            col_idx = c.get("columnIndex")
+            if "invoice no" in cell_text or "invoice id" in cell_text or "invoice number" in cell_text:
+                inv_no_row = row_idx
+            if ("dated" in cell_text or "invoice date" in cell_text) and not any(bad in cell_text for bad in ["buyer", "order", "po", "lr", "challan"]):
+                if inv_no_row is not None and row_idx == inv_no_row:
+                    dated_col_idx = col_idx
+
+        if inv_no_row is not None and dated_col_idx is not None:
+            # Check cells in the dated column at inv_no_row and inv_no_row + 1 (the data row directly under 'Dated')
+            for c in cells:
+                if c.get("columnIndex") == dated_col_idx and c.get("rowIndex") in [inv_no_row, inv_no_row + 1]:
+                    valid = parse_and_validate_date(c.get("content"))
+                    if valid:
+                        return valid
+
+        # Pass B: Look for cell containing both 'Invoice No.' and 'Dated' or date in same row
+        for c in cells:
+            cell_text = str(c.get("content") or "").strip()
+            if "invoice no" in cell_text.lower() or "dated" in cell_text.lower():
+                valid = parse_and_validate_date(cell_text)
+                if valid:
+                    return valid
+
+    # 2. Key-Value Pairs inspection
+    kv_pairs = analyze_result.get("keyValuePairs", [])
+    for kv in kv_pairs:
+        key_text = str(kv.get("key", {}).get("content", "")).lower()
+        val_text = str(kv.get("value", {}).get("content", "")).strip()
+        if any(k in key_text for k in ["invoice date", "date of invoice", "dated", "inv date"]):
+            if not any(bad in key_text for bad in ["buyer", "order", "po", "lr", "challan", "delivery", "dispatch", "transport"]):
+                valid = parse_and_validate_date(val_text)
+                if valid:
+                    return valid
+
+    # 3. Spatial Side-by-Side Layout Line Inspection (top 45% of page)
     pages = analyze_result.get("pages", [])
-    
-    # 1. Spatial Inspection: Look at top 40% of page
     for page in pages:
         lines = page.get("lines", [])
         page_h = float(page.get("height") or 1.0)
-        
-        top_dated_indices = []
+
         for idx, line in enumerate(lines):
-            line_text = str(line.get("content") or "").strip().lower()
+            line_text = str(line.get("content") or "").strip()
+            line_lower = line_text.lower()
+
             poly = line.get("polygon") or line.get("boundingBox") or []
             if poly and len(poly) >= 8:
                 y_center = sum([poly[i] for i in range(1, 8, 2)]) / 4.0
             elif poly and len(poly) == 4:
-                y_center = poly[1] + poly[3]/2.0
+                y_center = poly[1] + poly[3] / 2.0
             else:
                 y_center = 0.0
-                
-            if y_center <= page_h * 0.4:
-                if "dated" in line_text or "invoice date" in line_text or "invoice no" in line_text:
-                    top_dated_indices.append(idx)
-                    
-        for hdr_idx in top_dated_indices:
-            for nxt_line in lines[hdr_idx: hdr_idx + 6]:
-                nxt_text = str(nxt_line.get("content") or "").strip()
-                date_match = DATE_REGEX.search(nxt_text)
-                if date_match:
-                    formatted = format_date_str(date_match.group(0))
-                    if formatted:
-                        return formatted
 
-    # 2. Line-by-line OCR content scanning
+            if y_center <= page_h * 0.45:
+                # Check lines containing 'dated' or 'invoice date'
+                if any(k in line_lower for k in ["dated", "invoice date", "date of invoice", "inv date"]):
+                    if not any(bad in line_lower for bad in ["buyer", "order", "po", "lr", "challan", "delivery note", "dispatch"]):
+                        for nxt_line in lines[idx: idx + 5]:
+                            nxt_text = str(nxt_line.get("content") or "").strip()
+                            valid = parse_and_validate_date(nxt_text)
+                            if valid:
+                                return valid
+
+                # Check lines near Invoice No
+                if "invoice no" in line_lower or "invoice id" in line_lower:
+                    for nxt_line in lines[idx: idx + 5]:
+                        nxt_text = str(nxt_line.get("content") or "").strip()
+                        valid = parse_and_validate_date(nxt_text)
+                        if valid:
+                            return valid
+
+    # 4. Line-by-line OCR content scanning (top 20 lines)
     norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
     ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
-    for idx, l_text in enumerate(ocr_lines[:15]):
+    for idx, l_text in enumerate(ocr_lines[:20]):
         l_lower = l_text.lower()
-        if "dated" in l_lower or "invoice date" in l_lower:
-            for nxt_text in ocr_lines[idx: idx + 4]:
-                date_match = DATE_REGEX.search(nxt_text)
-                if date_match:
-                    formatted = format_date_str(date_match.group(0))
-                    if formatted:
-                        return formatted
+        if any(k in l_lower for k in ["dated", "invoice date", "date of invoice", "inv date"]):
+            if not any(bad in l_lower for bad in ["buyer", "order", "po", "lr", "challan", "delivery note", "dispatch"]):
+                for nxt_text in ocr_lines[idx: idx + 5]:
+                    valid = parse_and_validate_date(nxt_text)
+                    if valid:
+                        return valid
+
+    # 5. Fallback to default_date if valid
+    if default_date:
+        valid = parse_and_validate_date(default_date)
+        if valid:
+            return valid
 
     return default_date
 
@@ -617,7 +730,9 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         amount = 0.0
 
     doc_no = get_field_val("InvoiceId")
-    azure_date = get_field_val("InvoiceDate", "valueDate")
+    inv_date_field = fields.get("InvoiceDate", {})
+    raw_azure_date = inv_date_field.get("content") or inv_date_field.get("valueString")
+    azure_date = parse_and_validate_date(raw_azure_date) or get_field_val("InvoiceDate", "valueDate")
     doc_date = extract_true_invoice_date(result, content, default_date=azure_date)
     
     if doc_type == "Challan":
@@ -657,7 +772,7 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         "asn_no": get_field_val("ASNNo") or get_field_val("ASNNumber") or "",
         "mode_of_transp": get_field_val("ModeOfTransport") or "",
         "dock_code": "",
-        "delivery_date": get_field_val("InvoiceDate", "valueDate"),
+        "delivery_date": doc_date if doc_type == "Invoice" else (get_field_val("InvoiceDate", "valueDate") or doc_date),
         "delivery_site": get_field_val("ShippingAddress") or get_field_val("ShippingAddressRecipient") or "",
         
         # Challan fields
