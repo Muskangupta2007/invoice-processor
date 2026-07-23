@@ -1777,6 +1777,48 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    let docDateFlatpickr = null;
+    const editDocDateInput = document.getElementById("edit-doc-date");
+    const editDocDateBtn = document.getElementById("edit-doc-date-btn");
+
+    if (editDocDateInput && typeof flatpickr !== "undefined") {
+        docDateFlatpickr = flatpickr(editDocDateInput, {
+            dateFormat: "d F Y",
+            allowInput: true,
+            theme: "dark",
+            onReady: function(selectedDates, dateStr, instance) {
+                if (editDocDateBtn) {
+                    editDocDateBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        instance.toggle();
+                    });
+                }
+            }
+        });
+    }
+
+    let challanDocDateFlatpickr = null;
+    const editChallanDocDateInput = document.getElementById("edit-challan-doc-date");
+    const editChallanDocDateBtn = document.getElementById("edit-challan-doc-date-btn");
+
+    if (editChallanDocDateInput && typeof flatpickr !== "undefined") {
+        challanDocDateFlatpickr = flatpickr(editChallanDocDateInput, {
+            dateFormat: "d F Y",
+            allowInput: true,
+            theme: "dark",
+            onReady: function(selectedDates, dateStr, instance) {
+                if (editChallanDocDateBtn) {
+                    editChallanDocDateBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        instance.toggle();
+                    });
+                }
+            }
+        });
+    }
     
     function openEditModal(docNo) {
         const doc = state.invoices.find(d => String(d.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
@@ -1787,6 +1829,18 @@ document.addEventListener("DOMContentLoaded", () => {
         editMrnDate.value = doc.mrn_date || "";
         if (mrnFlatpickr) {
             mrnFlatpickr.setDate(doc.mrn_date || "", true);
+        }
+        if (editDocDateInput) {
+            editDocDateInput.value = doc.doc_date || "";
+            if (docDateFlatpickr) {
+                docDateFlatpickr.setDate(doc.doc_date || "", true);
+            }
+        }
+        if (editChallanDocDateInput) {
+            editChallanDocDateInput.value = doc.doc_date || "";
+            if (challanDocDateFlatpickr) {
+                challanDocDateFlatpickr.setDate(doc.doc_date || "", true);
+            }
         }
         editMrnNo.value = doc.mrn_no || "";
         editRemarks.value = doc.remarks || "";
@@ -1967,6 +2021,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (docType === "Invoice") {
             updatedData.mrn_status = editMrnStatus.value;
             updatedData.mrn_date = editMrnDate.value;
+            if (editDocDateInput) {
+                updatedData.doc_date = editDocDateInput.value.trim();
+            }
             updatedData.mrn_no = editMrnNo.value;
             updatedData.item_description = editInvoiceItemDescription.value;
             updatedData.eway_bill = document.getElementById("edit-eway-bill").value;
@@ -1982,6 +2039,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (targetInv) {
                 targetInv.mrn_status = editMrnStatus.value;
                 targetInv.mrn_date = editMrnDate.value;
+                if (updatedData.doc_date !== undefined) {
+                    targetInv.doc_date = updatedData.doc_date;
+                }
                 targetInv.mrn_no = editMrnNo.value;
                 targetInv.remarks = editRemarks.value;
                 if (updatedData.asn_no !== undefined) {
@@ -2009,11 +2069,17 @@ document.addEventListener("DOMContentLoaded", () => {
             updatedData.po_qty = editPoQty.value;
             updatedData.po_status = editPoStatus.value;
             updatedData.invoice_no = editInvoiceNoVal.value;
+            if (editChallanDocDateInput) {
+                updatedData.doc_date = editChallanDocDateInput.value.trim();
+            }
 
             // Optimistic local update
             const targetInv = state.invoices.find(inv => String(inv.doc_no || '').trim().toLowerCase() === String(docNo || '').trim().toLowerCase());
             if (targetInv) {
                 targetInv.po_status = editPoStatus.value;
+                if (updatedData.doc_date !== undefined) {
+                    targetInv.doc_date = updatedData.doc_date;
+                }
             }
             renderAlertLists();
         }
