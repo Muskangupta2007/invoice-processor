@@ -179,6 +179,9 @@ def is_valid_challan_number(val):
         return False
     if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/', '45 ', '30 ', '60 ']):
         return False
+    # Reject standalone short pure numbers without slashes/letters (e.g. "45", "30", "60", "15")
+    if clean.isdigit() and (len(clean) <= 3 or int(clean) <= 100):
+        return False
     # Reject payment terms (e.g. 45 Days, 30 Days, Net 30, Cash)
     if PAYMENT_PATTERN.search(clean):
         return False
@@ -253,7 +256,7 @@ def get_analyze_result(result_json):
 def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
     """
     Directly extracts whatever line is written under 'Delivery Note' / 'Delivery Challan'
-    in the invoice image/OCR text.
+    in the invoice image/OCR text while strictly respecting column spatial alignment.
     """
     result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
     content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
@@ -266,12 +269,37 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
         for idx, line in enumerate(lines):
             line_text = str(line.get("content") or "").strip().lower()
             if any(k in line_text for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
+                # Calculate bounding box X-range for the Delivery Note header
+                poly = line.get("polygon") or line.get("boundingBox") or []
+                hdr_x_min, hdr_x_max = None, None
+                if poly and len(poly) >= 8:
+                    xs = [poly[i] for i in range(0, 8, 2)]
+                    hdr_x_min, hdr_x_max = min(xs), max(xs)
+                elif poly and len(poly) == 4:
+                    hdr_x_min, hdr_x_max = poly[0], poly[0] + poly[2]
+
                 for next_line in lines[idx + 1: idx + 6]:
                     nxt_text = str(next_line.get("content") or "").strip()
                     if not nxt_text:
                         continue
+
+                    # Spatial Column alignment check: ignore lines that belong to right adjacent column (e.g. Mode/Terms of Payment)
+                    nxt_poly = next_line.get("polygon") or next_line.get("boundingBox") or []
+                    if hdr_x_max is not None and nxt_poly:
+                        if len(nxt_poly) >= 8:
+                            nxt_xs = [nxt_poly[i] for i in range(0, 8, 2)]
+                            nxt_x_center = (min(nxt_xs) + max(nxt_xs)) / 2.0
+                        elif len(nxt_poly) == 4:
+                            nxt_x_center = nxt_poly[0] + (nxt_poly[2] / 2.0)
+                        else:
+                            nxt_x_center = None
+
+                        hdr_w = max(hdr_x_max - hdr_x_min, 0.5)
+                        if nxt_x_center is not None and nxt_x_center > (hdr_x_max + 0.25 * hdr_w):
+                            continue # Skip line belonging to right column (e.g. Mode/Terms of Payment)
+
                     clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
-                    if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER']):
+                    if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER', 'DISPATCH', 'DESTINATION']):
                         continue
                     if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.match(clean_nxt):
                         continue
