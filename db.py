@@ -179,7 +179,12 @@ def clean_challan_no(val, doc_no=None):
     if doc_no and 'SKH/26-27/224' in str(doc_no).upper():
         return "SKH/DC/26-27/116"
 
-    upper_val = s_val.upper()
+    # Reject long addresses, company names, or text blocks with 2 or more spaces or length > 30
+    if len(s_val) > 30 or s_val.count(' ') >= 2:
+        return ""
+
+    if any(w in upper_val for w in ['LARSEN', 'SURVEY', 'VILLA', 'BHAYANDAR', 'THANE', 'MUMBAI', 'CAMP OFFICE']):
+        return ""
 
     # Reject email addresses
     if '@' in upper_val or 'OUTLOOK' in upper_val or 'GMAIL' in upper_val or 'EMAIL' in upper_val:
@@ -306,7 +311,7 @@ def init_db():
         cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
         cursor.execute("UPDATE documents SET eway_bill = 'N/A' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) < 50000")
         cursor.execute("UPDATE documents SET challan_no = 'SKH/DC/26-27/116' WHERE doc_no = 'SKH/26-27/224' OR challan_no LIKE '%390021%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%'")
-        cursor.execute("UPDATE documents SET challan_no = '' WHERE (UPPER(TRIM(challan_no)) IN ('45', '30', '60', '90', '15', '7', 'DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.', '45 DAYS', '30 DAYS') OR challan_no LIKE '%@%' OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%' OR challan_no LIKE '%UIN%' OR challan_no LIKE '%Jul%' OR challan_no LIKE '%Jan%' OR challan_no LIKE '%Feb%' OR challan_no LIKE '%Mar%' OR challan_no LIKE '%Apr%' OR challan_no LIKE '%May%' OR challan_no LIKE '%Jun%' OR challan_no LIKE '%Aug%' OR challan_no LIKE '%Sep%' OR challan_no LIKE '%Oct%' OR challan_no LIKE '%Nov%' OR challan_no LIKE '%Dec%' OR challan_no LIKE '%Days%' OR challan_no LIKE '%DAYS%') AND doc_no != 'SKH/26-27/224'")
+        cursor.execute("UPDATE documents SET challan_no = '' WHERE (UPPER(TRIM(challan_no)) IN ('45', '30', '60', '90', '15', '7', 'DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.', '45 DAYS', '30 DAYS') OR challan_no LIKE '%Larsen%' OR challan_no LIKE '%Survey%' OR challan_no LIKE '%Villa%' OR challan_no LIKE '%Bhayandar%' OR challan_no LIKE '%Thane%' OR challan_no LIKE '%@%' OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%' OR challan_no LIKE '%UIN%' OR challan_no LIKE '%Jul%' OR challan_no LIKE '%Jan%' OR challan_no LIKE '%Feb%' OR challan_no LIKE '%Mar%' OR challan_no LIKE '%Apr%' OR challan_no LIKE '%May%' OR challan_no LIKE '%Jun%' OR challan_no LIKE '%Aug%' OR challan_no LIKE '%Sep%' OR challan_no LIKE '%Oct%' OR challan_no LIKE '%Nov%' OR challan_no LIKE '%Dec%' OR challan_no LIKE '%Days%' OR challan_no LIKE '%DAYS%') AND doc_no != 'SKH/26-27/224'")
         conn.commit()
     except Exception as clean_err:
         print(f"[DB Init] Cleanup warning: {clean_err}")

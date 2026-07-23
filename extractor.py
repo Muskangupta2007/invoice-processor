@@ -142,7 +142,9 @@ EWAY_PATTERN = re.compile(r'^\d{12}$')
 ADDRESS_WORDS = {
     'VADODARA', 'BARODA', 'SURAT', 'AHMEDABAD', 'MUMBAI', 'PUNE', 'GUJARAT',
     'MAHARASHTRA', 'DELHI', 'DESTINATION', 'DISPATCH', 'ADDRESS', 'ROAD', 'DIST',
-    'PINCODE', 'PIN', 'STATE', 'CITY', 'HAZIRA', 'INDIA'
+    'PINCODE', 'PIN', 'STATE', 'CITY', 'HAZIRA', 'INDIA', 'SURVEY', 'VILLA', 'THANE',
+    'BHAYANDAR', 'COMPLEX', 'PLOT', 'BUILDING', 'FLOOR', 'LANE', 'STREET', 'PHASE',
+    'LARSEN', 'TOUBRO', 'CAMP', 'OFFICE'
 }
 
 TAX_LABEL_WORDS = {
@@ -183,6 +185,9 @@ def is_valid_challan_number(val):
         return False
     # Reject email addresses and URLs
     if '@' in clean or EMAIL_PATTERN.search(clean) or 'HTTP' in clean or 'WWW' in clean:
+        return False
+    # Reject long addresses, company names, or text blocks with 2 or more spaces or length > 30
+    if len(clean) > 30 or clean.count(' ') >= 2:
         return False
     # Reject standalone short pure numbers without slashes/letters (e.g. "45", "30", "60", "15")
     if clean.isdigit() and (len(clean) <= 3 or int(clean) <= 100):
@@ -273,6 +278,9 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
         lines = page.get("lines", [])
         for idx, line in enumerate(lines):
             line_text = str(line.get("content") or "").strip().lower()
+            # Do NOT match "Delivery Note Date" as a Delivery Note header!
+            if "date" in line_text:
+                continue
             if any(k in line_text for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
                 # Calculate bounding box X-range for the Delivery Note header
                 poly = line.get("polygon") or line.get("boundingBox") or []
@@ -319,6 +327,8 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
     ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
     for idx, l_text in enumerate(ocr_lines):
         l_lower = l_text.lower()
+        if "date" in l_lower:
+            continue
         if any(k in l_lower for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
             for nxt_text in ocr_lines[idx + 1: idx + 6]:
                 clean_nxt = re.sub(r'^[.:#-]+\s*', '', nxt_text).strip()
