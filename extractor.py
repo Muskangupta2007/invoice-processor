@@ -375,8 +375,119 @@ def extract_challan_number(result_json_or_content, raw_content=None):
             if is_valid_challan_number(clean_val):
                 return clean_val
 
-    # IF NOTHING VALID WRITTEN UNDER DELIVERY NOTE, LEAVE BLANK ('')
+INVALID_MODE_WORDS = {
+    'DATE', 'DATED', 'DOC', 'NO', 'NUMBER', 'REF', 'DESTINATION', 'TERMS', 'DELIVERY',
+    'BUYER', 'SUPPLIER', 'OTHER', 'REFERENCES', 'DETAILS', 'INVOICE', 'CHALLAN', 'ADDRESS'
+}
+
+TRANSPORT_KEYWORDS = {
+    'VEHICLE', 'ROAD', 'BY ROAD', 'BY VEHICLE', 'AIR', 'BY AIR', 'SEA', 'BY SEA',
+    'COURIER', 'TEMPO', 'TRUCK', 'TRAIN', 'RAIL', 'HAND DELIVERY', 'BY HAND',
+    'EXPRESS', 'SURFACE', 'CARGO', 'LOGISTICS', 'PARCEL', 'SPEED POST', 'CONTAINER',
+    'LORRY', 'FLIGHT', 'VESSEL', 'TRANSPORT'
+}
+
+def clean_mode_of_transport(val):
+    if not val:
+        return None
+    clean = re.sub(r'^[.:#-]+\s*', '', str(val)).strip()
+    clean = re.sub(r'^(?:dispatched\s*through|despatched\s*through|mode\s*of\s*transp(?:ort|ortation)?|transport\s*mode|transp\s*mode|transported\s*through|transported\s*by|carrier|transporter)\s*[:#-]*\s*', '', clean, flags=re.IGNORECASE).strip()
+    clean_upper = clean.upper()
+
+    if not clean or len(clean) < 2 or clean_upper in INVALID_MODE_WORDS:
+        return None
+
+    for kw in TRANSPORT_KEYWORDS:
+        if kw in clean_upper:
+            return clean_upper
+
+    if clean_upper.startswith('BY ') or 'VEHICLE' in clean_upper or 'ROAD' in clean_upper:
+        return clean_upper
+
+    if len(clean) <= 25 and not re.search(r'\d', clean) and not any(w in clean_upper for w in INVALID_MODE_WORDS):
+        return clean_upper
+
     return None
+
+def extract_mode_of_transport(result_json_or_content, raw_content=None, default_val=None):
+    """
+    Extracts Mode of Transport (e.g. 'VEHICLE', 'BY ROAD', 'ROAD', 'COURIER', 'TEMPO', 'TRUCK', etc.)
+    from Azure fields, Key-Value pairs, Azure tables, spatial OCR lines, and raw text content.
+    """
+    if default_val:
+        cleaned = clean_mode_of_transport(default_val)
+        if cleaned:
+            return cleaned
+
+    result_json = result_json_or_content if isinstance(result_json_or_content, dict) else {}
+    content = raw_content if raw_content is not None else (result_json_or_content if isinstance(result_json_or_content, str) else "")
+    analyze_result = get_analyze_result(result_json)
+
+    # 1. Key-Value pairs inspection
+    kv_pairs = analyze_result.get("keyValuePairs", [])
+    for kv in kv_pairs:
+        key_text = str(kv.get("key", {}).get("content", "")).lower()
+        val_text = str(kv.get("value", {}).get("content", "")).strip()
+        if any(k in key_text for k in ["dispatched through", "despatched through", "mode of transport", "transport mode", "transp mode", "means of transport", "transported through"]):
+            cleaned = clean_mode_of_transport(val_text)
+            if cleaned:
+                return cleaned
+
+    # 2. Azure Tables inspection
+    tables = analyze_result.get("tables", [])
+    for tbl in tables:
+        cells = tbl.get("cells", [])
+        for c in cells:
+            cell_text = str(c.get("content") or "").strip().lower()
+            if any(k in cell_text for k in ["dispatched through", "despatched through", "mode of transport", "transport mode", "transp mode", "means of transport"]):
+                r_idx = c.get("rowIndex")
+                c_idx = c.get("columnIndex")
+                for target in cells:
+                    if target.get("columnIndex") == c_idx and target.get("rowIndex") == r_idx + 1:
+                        cleaned = clean_mode_of_transport(target.get("content"))
+                        if cleaned:
+                            return cleaned
+                    if target.get("rowIndex") == r_idx and target.get("columnIndex") == c_idx + 1:
+                        cleaned = clean_mode_of_transport(target.get("content"))
+                        if cleaned:
+                            return cleaned
+
+    # 3. Spatial Layout Line Inspection
+    pages = analyze_result.get("pages", [])
+    for page in pages:
+        lines = page.get("lines", [])
+        for idx, line in enumerate(lines):
+            line_text = str(line.get("content") or "").strip()
+            line_lower = line_text.lower()
+            if any(k in line_lower for k in ["dispatched through", "despatched through", "mode of transport", "transport mode", "transp mode", "means of transport", "transported through"]):
+                m = re.search(r'(?:dispatched through|despatched through|mode of transport|transport mode|transp mode|transported through)\s*[:#-]*\s*(.+)', line_text, re.IGNORECASE)
+                if m and m.group(1).strip():
+                    cleaned = clean_mode_of_transport(m.group(1).strip())
+                    if cleaned:
+                        return cleaned
+                for nxt_line in lines[idx + 1: idx + 4]:
+                    nxt_text = str(nxt_line.get("content") or "").strip()
+                    cleaned = clean_mode_of_transport(nxt_text)
+                    if cleaned:
+                        return cleaned
+
+    # 4. Raw OCR Content Scanning
+    norm_content = str(content or "").replace('–', '-').replace('—', '-').replace('−', '-')
+    ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
+    for idx, l_text in enumerate(ocr_lines):
+        l_lower = l_text.lower()
+        if any(k in l_lower for k in ["dispatched through", "despatched through", "mode of transport", "transport mode", "transp mode", "means of transport", "transported through"]):
+            m = re.search(r'(?:dispatched through|despatched through|mode of transport|transport mode|transp mode|transported through)\s*[:#-]*\s*(.+)', l_text, re.IGNORECASE)
+            if m and m.group(1).strip():
+                cleaned = clean_mode_of_transport(m.group(1).strip())
+                if cleaned:
+                    return cleaned
+            for nxt_text in ocr_lines[idx + 1: idx + 4]:
+                cleaned = clean_mode_of_transport(nxt_text)
+                if cleaned:
+                    return cleaned
+
+    return ""
 
 MONTH_MAP = {
     'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
@@ -770,7 +881,7 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         "eway_bill": eway_bill_val,
         "eway_bill_no": eway_bill_no_val,
         "asn_no": get_field_val("ASNNo") or get_field_val("ASNNumber") or "",
-        "mode_of_transp": get_field_val("ModeOfTransport") or "",
+        "mode_of_transp": extract_mode_of_transport(result, content, default_val=get_field_val("ModeOfTransport")),
         "dock_code": "",
         "delivery_date": doc_date if doc_type == "Invoice" else (get_field_val("InvoiceDate", "valueDate") or doc_date),
         "delivery_site": get_field_val("ShippingAddress") or get_field_val("ShippingAddressRecipient") or "",
