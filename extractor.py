@@ -150,6 +150,17 @@ TAX_LABEL_WORDS = {
     'GSTIN/UIN', 'ARN', 'SAC', 'HSN', 'IRN'
 }
 
+MONTH_WORDS = {
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER',
+    'OCTOBER', 'NOVEMBER', 'DECEMBER', 'DATED', 'DATE'
+}
+
+DATE_PATTERN = re.compile(
+    r'\b(?:\d{1,2}[-/\.\s]+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|\d{1,2})[-/\.\s]+\d{2,4}|\d{4}[-/\.\s]+\d{1,2}[-/\.\s]+\d{1,2})\b',
+    re.IGNORECASE
+)
+
 GSTIN_PATTERN = re.compile(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', re.IGNORECASE)
 
 def is_valid_challan_number(val):
@@ -159,6 +170,9 @@ def is_valid_challan_number(val):
     if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
     if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/']):
+        return False
+    # Reject date strings (e.g. 9-Jul-26, 14/07/2026, 09-07-2026)
+    if DATE_PATTERN.search(clean):
         return False
     # Reject GSTIN / UIN / Tax registration numbers
     if 'GSTIN' in clean or 'GST' in clean or 'UIN' in clean or 'PAN' in clean or 'CIN' in clean:
@@ -174,9 +188,9 @@ def is_valid_challan_number(val):
     # Reject strings containing 10-digit phone numbers or 12-digit Eway bill numbers
     if PHONE_PATTERN.search(clean) or EWAY_PATTERN.search(clean):
         return False
-    # Reject address/city strings
+    # Reject address/city/month strings
     tokens = set(re.findall(r'[A-Z]+', clean))
-    if tokens & ADDRESS_WORDS or tokens & TAX_LABEL_WORDS:
+    if tokens & ADDRESS_WORDS or tokens & TAX_LABEL_WORDS or tokens & MONTH_WORDS:
         return False
     return True
 
