@@ -122,11 +122,11 @@ body.brown-mode {
 
 /* Tropical Mode (Sunset Emerald & Palm Oasis Theme) Variables */
 body.tropical-mode {
-    --bg-app: #ecfdf5;
-    --bg-sidebar: #d1fae5;
-    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-app: #e8f8f2;
+    --bg-sidebar: rgba(209, 250, 229, 0.88);
+    --bg-card: rgba(255, 255, 255, 0.94);
     --border-color: rgba(16, 185, 129, 0.32);
-    --text-primary: #064e3b;
+    --text-primary: #044e39;
     --text-secondary: #047857;
     
     --primary: #10b981;
@@ -147,6 +147,35 @@ body.tropical-mode {
     --shadow-sm: 0 4px 12px rgba(16, 185, 129, 0.14);
     --shadow-md: 0 10px 25px rgba(16, 185, 129, 0.2);
     --shadow-lg: 0 20px 45px rgba(6, 78, 59, 0.25);
+
+    background: 
+        linear-gradient(135deg, rgba(236, 253, 245, 0.75) 0%, rgba(209, 250, 229, 0.85) 100%),
+        url('tropical_bg.png') center/cover no-repeat fixed !important;
+}
+
+/* Floating Tropical Palm Tree Silhouettes & Leaf Accents */
+body.tropical-mode .main-content::before {
+    content: "";
+    position: fixed;
+    bottom: -10px;
+    right: 10px;
+    width: 360px;
+    height: 480px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="%23059669" opacity="0.2"><path d="M50 120 C52 80 48 50 45 20 C42 40 25 25 10 30 C30 38 38 45 44 55 C20 52 5 62 0 75 C20 72 32 68 43 65 C18 78 12 95 15 110 C30 95 38 85 45 76 C46 95 48 108 50 120 Z"/><path d="M50 120 C54 75 62 45 75 15 C65 30 52 35 48 45 C70 38 85 42 98 52 C78 55 65 60 52 62 C75 70 88 82 92 100 C74 88 62 78 51 72 Z"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.tropical-mode .main-content::after {
+    content: "";
+    position: fixed;
+    top: 50px;
+    right: -30px;
+    width: 280px;
+    height: 320px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%2310b981" opacity="0.18"><path d="M100 0 C70 10 50 35 40 60 C35 45 20 30 0 25 C15 35 25 45 32 55 C15 55 0 70 5 85 C20 75 30 68 37 62 C30 80 35 95 45 100 C45 80 43 68 40 60 Z"/></svg>') no-repeat center/contain;
+    pointer-events: none;
+    z-index: 0;
 }
 
 
