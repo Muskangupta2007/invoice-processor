@@ -217,14 +217,14 @@ def clean_challan_no(val, doc_no=None):
     if tokens & MONTH_WORDS_UPPER:
         return ""
 
-    if any(k in upper_val for k in ['GSTIN', 'GST', 'UIN', 'PAN', 'CIN']):
+    if any(k in upper_val for k in ['GSTIN', 'GST', 'UIN', 'PAN', 'CIN', 'MOBILE', 'MOB', 'PHONE', 'TEL', 'CONTACT']):
         return ""
     if upper_val in ['390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER', 'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'N/A', 'NONE', 'NULL', '-']:
         return ""
-    if any(upper_val.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'VADODARA', 'GSTIN/', 'GST/', 'UIN/']):
+    if any(upper_val.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'VADODARA', 'GSTIN/', 'GST/', 'UIN/', 'MOBILE/', 'MOB/', 'PHONE/']):
         return ""
         
-    if re.search(r'\b\d{6}\b', s_val) or re.search(r'VADODARA', upper_val) or re.search(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', s_val):
+    if re.search(r'\b\d{6}\b', s_val) or re.search(r'\b\d{10}\b', s_val) or re.search(r'VADODARA', upper_val) or re.search(r'\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]{3}\b', s_val):
         return ""
 
     if not re.search(r'\d', s_val):

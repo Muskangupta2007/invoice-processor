@@ -136,7 +136,7 @@ INVALID_CHALLAN_WORDS = {
 }
 
 PINCODE_PATTERN = re.compile(r'^\d{6}$')
-PHONE_PATTERN = re.compile(r'^\d{10}$')
+PHONE_PATTERN = re.compile(r'\b\d{10}\b')
 EWAY_PATTERN = re.compile(r'^\d{12}$')
 
 ADDRESS_WORDS = {
@@ -149,7 +149,7 @@ ADDRESS_WORDS = {
 
 TAX_LABEL_WORDS = {
     'GSTIN', 'GST', 'UIN', 'PAN', 'CIN', 'TAX', 'REGISTRATION', 'STATE', 'CODE',
-    'GSTIN/UIN', 'ARN', 'SAC', 'HSN', 'IRN'
+    'GSTIN/UIN', 'ARN', 'SAC', 'HSN', 'IRN', 'MOBILE', 'MOB', 'PHONE', 'TEL', 'CONTACT', 'EMAIL'
 }
 
 MONTH_WORDS = {
@@ -181,7 +181,9 @@ def is_valid_challan_number(val):
     clean = re.sub(r'^[/:#-]+\s*', '', str(val)).strip().upper().rstrip('.,;:')
     if not clean or len(clean) < 2 or clean in INVALID_CHALLAN_WORDS:
         return False
-    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/', '45 ', '30 ', '60 ']):
+    if any(clean.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'REF/', 'OTHER/', 'GSTIN/', 'GST/', 'UIN/', 'MOBILE/', 'MOB/', 'PHONE/', 'TEL/', '45 ', '30 ', '60 ']):
+        return False
+    if any(k in clean for k in ['MOBILE', 'MOB:', 'PHONE', 'TEL:', 'FAX:', 'CONTACT', 'PAN NUMBER', 'PAN NO', 'GSTIN', 'EMAIL']):
         return False
     # Reject email addresses and URLs
     if '@' in clean or EMAIL_PATTERN.search(clean) or 'HTTP' in clean or 'WWW' in clean:
@@ -209,7 +211,7 @@ def is_valid_challan_number(val):
     # Reject strings containing 6-digit pincodes anywhere (e.g. VADODARA - 390021 or 390021)
     if re.search(r'\b\d{6}\b', clean):
         return False
-    # Reject strings containing 10-digit phone numbers or 12-digit Eway bill numbers
+    # Reject strings containing 10-digit phone numbers or 12-digit Eway bill numbers anywhere
     if PHONE_PATTERN.search(clean) or EWAY_PATTERN.search(clean):
         return False
     # Reject address/city/month/payment strings
@@ -278,11 +280,25 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
     for page in pages:
         lines = page.get("lines", [])
         for idx, line in enumerate(lines):
-            line_text = str(line.get("content") or "").strip().lower()
-            # Do NOT match "Delivery Note Date" as a Delivery Note header!
-            if "date" in line_text:
+            line_text = str(line.get("content") or "").strip()
+            line_lower = line_text.lower()
+
+            # First check inline pattern matching (e.g. 'Challan No.: SADC/26-27/4')
+            if any(k in line_lower for k in ["challan no", "challan number", "delivery challan no", "dc no", "delivery note"]):
+                m = re.search(r'(?:challan\s*no|challan\s*number|dc\s*no|dc\s*number|delivery\s*challan\s*no|delivery\s*note)\s*[:.#-]*\s*([a-zA-Z0-9/\-_]{2,30})', line_text, re.IGNORECASE)
+                if m:
+                    cand = m.group(1).strip()
+                    healed = fix_truncated_challan_number(cand, content)
+                    if healed and is_valid_challan_number(healed):
+                        return healed
+                    if is_valid_challan_number(cand):
+                        return cand
+
+            # Do NOT match "Delivery Note Date" as a standalone Delivery Note header!
+            if "date" in line_lower and not any(k in line_lower for k in ["challan no", "challan number", "delivery challan no"]):
                 continue
-            if any(k in line_text for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
+
+            if any(k in line_lower for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
                 # Calculate bounding box X-range for the Delivery Note header
                 poly = line.get("polygon") or line.get("boundingBox") or []
                 hdr_x_min, hdr_x_max = None, None
@@ -317,7 +333,7 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
                         return "DIRECT INVOICE"
                     if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER', 'DISPATCH', 'DESTINATION']):
                         continue
-                    if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.match(clean_nxt):
+                    if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.search(clean_nxt):
                         continue
                     healed = fix_truncated_challan_number(clean_nxt, content)
                     if healed and is_valid_challan_number(healed):
@@ -330,7 +346,17 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
     ocr_lines = [l.strip() for l in norm_content.splitlines() if l.strip()]
     for idx, l_text in enumerate(ocr_lines):
         l_lower = l_text.lower()
-        if "date" in l_lower:
+        if any(k in l_lower for k in ["challan no", "challan number", "delivery challan no", "dc no", "delivery note"]):
+            m = re.search(r'(?:challan\s*no|challan\s*number|dc\s*no|dc\s*number|delivery\s*challan\s*no|delivery\s*note)\s*[:.#-]*\s*([a-zA-Z0-9/\-_]{2,30})', l_text, re.IGNORECASE)
+            if m:
+                cand = m.group(1).strip()
+                healed = fix_truncated_challan_number(cand, norm_content)
+                if healed and is_valid_challan_number(healed):
+                    return healed
+                if is_valid_challan_number(cand):
+                    return cand
+
+        if "date" in l_lower and not any(k in l_lower for k in ["challan no", "challan number", "delivery challan no"]):
             continue
         if any(k in l_lower for k in ["delivery note", "delivery challan", "challan no", "challan number"]):
             for nxt_text in ocr_lines[idx + 1: idx + 6]:
@@ -339,7 +365,7 @@ def extract_line_under_delivery_note(result_json_or_content, raw_content=None):
                     return "DIRECT INVOICE"
                 if any(clean_nxt.upper().startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'REFERENCE', 'REF', 'ORDER', 'DATED', 'BUYER', 'SUPPLIER', 'OTHER']):
                     continue
-                if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.match(clean_nxt):
+                if PINCODE_PATTERN.match(clean_nxt) or PHONE_PATTERN.search(clean_nxt):
                     continue
                 healed = fix_truncated_challan_number(clean_nxt, norm_content)
                 if healed and is_valid_challan_number(healed):
