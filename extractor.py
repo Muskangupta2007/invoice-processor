@@ -712,13 +712,12 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
     content = analyze_result.get("content", "")
     documents = analyze_result.get("documents", [])
     
-    if not documents:
-        raise ValueError("Azure completed successfully, but could not identify a valid document structure.")
-        
-    doc = documents[0]
+    doc = documents[0] if documents else {}
     fields = doc.get("fields", {})
     
     def get_field_val(name, val_type="valueString"):
+        if not fields:
+            return None
         f = fields.get(name, {})
         if not f:
             return None
@@ -730,11 +729,15 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
         return None
 
     # Get Customer name or Customer Address as Bill To
-    bill_to = get_field_val("CustomerName")
-    if not bill_to:
-        bill_to = get_field_val("CustomerAddress")
-    if not bill_to:
-        bill_to = get_field_val("VendorName")
+    bill_to = get_field_val("CustomerName") or get_field_val("CustomerAddress") or get_field_val("VendorName")
+    if not bill_to and content:
+        for line in str(content).splitlines():
+            line_str = line.strip()
+            if any(k in line_str.lower() for k in ["consignee", "bill to", "delivered to", "buyer"]):
+                clean_name = re.sub(r'(?i)^(?:consignee|bill to|delivered to|buyer)\s*[:#-]*\s*', '', line_str).strip()
+                if clean_name and len(clean_name) > 3:
+                    bill_to = clean_name.upper()
+                    break
         
     # Extract line items
     items = fields.get("Items", {}).get("valueArray", [])
@@ -854,17 +857,24 @@ def parse_azure_invoice_result(result, doc_type="Invoice"):
     else:
         amount = 0.0
 
-    doc_no = get_field_val("InvoiceId")
-    inv_date_field = fields.get("InvoiceDate", {})
+    inv_date_field = fields.get("InvoiceDate", {}) if fields else {}
     raw_azure_date = inv_date_field.get("content") or inv_date_field.get("valueString")
     azure_date = parse_and_validate_date(raw_azure_date) or get_field_val("InvoiceDate", "valueDate")
     doc_date = extract_true_invoice_date(result, content, default_date=azure_date)
     
     if doc_type == "Challan":
+        doc_no = extract_challan_number(result, content) or get_field_val("InvoiceId") or extract_line_under_delivery_note(result, content)
+        if not doc_no and content:
+            dc_match = re.search(r'(?i)(?:challan\s*no|challan\s*number|dc\s*no|dc\s*number|delivery\s*challan\s*no)\s*[:#-]*\s*([a-zA-Z0-9/\-_]{3,30})', str(content))
+            if dc_match:
+                cand = dc_match.group(1).strip()
+                if is_valid_challan_number(cand):
+                    doc_no = cand
         invoice_no = ""
-        challan_no = doc_no
+        challan_no = doc_no or ""
     else:
-        invoice_no = doc_no
+        doc_no = get_field_val("InvoiceId")
+        invoice_no = doc_no or ""
         extracted_challan = extract_challan_number(result, content)
         challan_no = extracted_challan if extracted_challan else ""
 
