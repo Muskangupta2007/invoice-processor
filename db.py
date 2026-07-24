@@ -36,11 +36,19 @@ class PostgresCursorWrapper:
         
         if "INSERT OR IGNORE INTO documents" in query:
             query = query.replace("INSERT OR IGNORE INTO documents", "INSERT INTO documents")
-            query += " ON CONFLICT (company, doc_type, doc_no) DO NOTHING"
+            if "ON CONFLICT" not in query:
+                query += " ON CONFLICT (company, doc_type, doc_no) DO NOTHING"
             
         if "INSERT OR IGNORE INTO settings" in query:
             query = query.replace("INSERT OR IGNORE INTO settings", "INSERT INTO settings")
-            query += " ON CONFLICT (key) DO NOTHING"
+            if "ON CONFLICT" not in query:
+                query += " ON CONFLICT (key) DO NOTHING"
+
+        if "INSERT OR REPLACE INTO deleted_documents" in query or "INSERT OR IGNORE INTO deleted_documents" in query:
+            query = query.replace("INSERT OR REPLACE INTO deleted_documents", "INSERT INTO deleted_documents")
+            query = query.replace("INSERT OR IGNORE INTO deleted_documents", "INSERT INTO deleted_documents")
+            if "ON CONFLICT" not in query:
+                query += " ON CONFLICT (company, doc_type, doc_no) DO UPDATE SET deleted_at = CURRENT_TIMESTAMP"
 
         query = query.replace('?', '%s')
 
@@ -639,16 +647,30 @@ def delete_document(company, doc_type, doc_no):
             "INSERT OR REPLACE INTO deleted_documents (company, doc_type, doc_no) VALUES (?, ?, ?)",
             (company, doc_type, doc_no)
         )
+        conn.commit()
     except Exception as e:
         print(f"[DB Delete] Error adding to deleted_documents: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
-    cursor.execute(
-        "DELETE FROM documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
-        (company, doc_type, doc_no)
-    )
-    conn.commit()
-    rows_affected = cursor.rowcount
-    conn.close()
+    rows_affected = 0
+    try:
+        cursor.execute(
+            "DELETE FROM documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
+            (company, doc_type, doc_no)
+        )
+        conn.commit()
+        rows_affected = cursor.rowcount
+    except Exception as e:
+        print(f"[DB Delete] Error deleting from documents: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        conn.close()
     
     if rows_affected > 0:
         try:
