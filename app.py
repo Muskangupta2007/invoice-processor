@@ -66,6 +66,45 @@ def reset_failed_attempts(ip):
     if ip in failed_attempts:
         del failed_attempts[ip]
 
+import hmac
+import hashlib
+import base64
+import json
+
+AUTH_SECRET_KEY = os.environ.get("SECRET_KEY", "invosync_secure_auth_secret_key_2026")
+
+def generate_session_token(username):
+    payload = json.dumps({'user': username, 'ts': time.time()}).encode()
+    sig = hmac.new(AUTH_SECRET_KEY.encode(), payload, hashlib.sha256).hexdigest()
+    token = base64.urlsafe_b64encode(payload).decode() + '.' + sig
+    return token
+
+def is_valid_session_token(token):
+    if not token or not isinstance(token, str):
+        return False
+    try:
+        parts = token.split('.')
+        if len(parts) == 2:
+            payload_b64, sig = parts
+            payload = base64.urlsafe_b64decode(payload_b64.encode())
+            expected_sig = hmac.new(AUTH_SECRET_KEY.encode(), payload, hashlib.sha256).hexdigest()
+            if hmac.compare_digest(sig, expected_sig):
+                data = json.loads(payload.decode())
+                if time.time() - data.get('ts', 0) < 30 * 86400:
+                    return True
+    except Exception:
+        pass
+        
+    active_token = db.get_setting("active_session_token", "")
+    if active_token and token == active_token:
+        return True
+        
+    stored_password_hash = db.get_setting("admin_password", "invosync2026")
+    if db.verify_password(stored_password_hash, token, setting_key_to_upgrade="admin_password"):
+        return True
+
+    return False
+
 # --- AUTHENTICATION DECORATORS ---
 def requires_auth(f):
     @wraps(f)
@@ -79,13 +118,7 @@ def requires_auth(f):
         if not token:
             return jsonify({"status": "error", "message": "Unauthorized access. Token required."}), 401
 
-        active_token = db.get_setting("active_session_token", "")
-        stored_password_hash = db.get_setting("admin_password", "invosync2026")
-
-        if active_token and token == active_token:
-            return f(*args, **kwargs)
-
-        if db.verify_password(stored_password_hash, token, setting_key_to_upgrade="admin_password"):
+        if is_valid_session_token(token):
             return f(*args, **kwargs)
 
         return jsonify({"status": "error", "message": "Unauthorized access. Please login."}), 401
@@ -103,14 +136,11 @@ def requires_settings_auth(f):
         if not token:
             return jsonify({"status": "error", "message": "Unauthorized access."}), 401
 
-        settings_pass = db.get_setting("settings_password", "settings2026")
-        admin_pass = db.get_setting("admin_password", "invosync2026")
-        active_token = db.get_setting("active_session_token", "")
-
-        if active_token and token == active_token:
+        if is_valid_session_token(token):
             return f(*args, **kwargs)
 
-        if db.verify_password(settings_pass, token, setting_key_to_upgrade="settings_password") or db.verify_password(admin_pass, token, setting_key_to_upgrade="admin_password"):
+        settings_pass = db.get_setting("settings_password", "settings2026")
+        if db.verify_password(settings_pass, token, setting_key_to_upgrade="settings_password"):
             return f(*args, **kwargs)
 
         return jsonify({"status": "error", "message": "Incorrect Settings Lock password."}), 401
@@ -168,7 +198,7 @@ def login():
 
     if username == expected_username and db.verify_password(stored_password_hash, password, setting_key_to_upgrade="admin_password"):
         reset_failed_attempts(ip)
-        session_token = secrets.token_hex(32)
+        session_token = generate_session_token(username)
         db.save_setting("active_session_token", session_token)
         return jsonify({
             "status": "success",
