@@ -175,6 +175,10 @@ def clean_challan_no(val, doc_no=None):
     if not val:
         return ""
     s_val = str(val).strip()
+    upper_val = s_val.upper()
+
+    if "DIRECT INVOICE" in upper_val:
+        return "DIRECT INVOICE"
 
     if doc_no and 'SKH/26-27/224' in str(doc_no).upper():
         return "SKH/DC/26-27/116"
@@ -207,7 +211,7 @@ def clean_challan_no(val, doc_no=None):
 
     if any(k in upper_val for k in ['GSTIN', 'GST', 'UIN', 'PAN', 'CIN']):
         return ""
-    if upper_val in ['DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER', 'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'N/A', 'NONE', 'NULL', '-']:
+    if upper_val in ['390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'REFERENCE', 'ORDER', 'INVOICE', 'DATE', 'DATED', 'DISPATCH', 'N/A', 'NONE', 'NULL', '-']:
         return ""
     if any(upper_val.startswith(w) for w in ['MODE/', 'TERMS/', 'PAYMENT/', 'DATE/', 'BUYER/', 'SUPPLIER/', 'VADODARA', 'GSTIN/', 'GST/', 'UIN/']):
         return ""
