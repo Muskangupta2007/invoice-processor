@@ -201,6 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (res.status === 401) {
             localStorage.removeItem("auth_token");
             showLoginScreen();
+            showToast("Session expired. Please sign in again to continue.", "warning");
             throw new Error("Unauthorized Access Redirecting to Login.");
         }
         return res;
@@ -1544,9 +1545,12 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => {
             clearInterval(interval);
             console.error("Upload error:", err);
-            showToast("Server error during data extraction.", "danger");
             uploadStatus.style.display = "none";
             dropzone.style.display = "flex";
+            if (err && err.message && err.message.includes("Unauthorized")) {
+                return;
+            }
+            showToast(err.message || "Server error during data extraction.", "danger");
         });
     }
 
