@@ -1600,7 +1600,7 @@ def start_excel_watcher():
                             
                             # Check if modification was from the app itself
                             expected_mtime = last_written_mtime.get(main_path, 0)
-                            if abs(mtime - expected_mtime) < 2.0:
+                            if abs(mtime - expected_mtime) < 5.0:
                                 continue
                                 
                             print(f"[Watcher] Manual Excel modification detected: {main_path}. Syncing...")

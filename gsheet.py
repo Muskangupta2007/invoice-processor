@@ -86,6 +86,11 @@ def sync_to_google_sheet(company):
     
     # Save hash immediately to prevent race conditions during background POST
     data_hash = compute_data_hash(invoices, challans)
+    last_hash = db.get_setting(f"gsheet_hash_{comp_key}", "")
+    if data_hash == last_hash:
+        print(f"[Google Sheets] Data for {company} is already in sync with Google Sheets (hash: {data_hash}). Skipping push.")
+        return True
+
     db.save_setting(f"gsheet_hash_{comp_key}", data_hash)
     
     # 1. Format Invoices
