@@ -188,8 +188,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function getSettingsHeaders(jsonContentType = true) {
+        const token = state.settingsPassword || getAuthToken() || "";
         const headers = {
-            "Authorization": `Bearer ${state.settingsPassword || ""}`
+            "Authorization": `Bearer ${token}`
         };
         if (jsonContentType) {
             headers["Content-Type"] = "application/json";
