@@ -15,46 +15,51 @@ def compute_data_hash(invoices, challans):
     """
     normalized_inv = []
     for inv in invoices:
+        try:
+            amt = round(float(str(inv.get("amount") or 0).replace(",", "").strip()), 2)
+        except (ValueError, TypeError):
+            amt = 0.0
+            
         normalized_inv.append({
-            "doc_no": str(inv.get("doc_no", "")).strip(),
+            "doc_no": str(inv.get("doc_no", "") or "").strip(),
             "doc_date": db.clean_date_string(inv.get("doc_date", "")),
-            "challan_no": str(inv.get("challan_no", "")).strip(),
-            "bill_to": str(inv.get("bill_to", "")).strip(),
-            "po_wo_no": str(inv.get("po_wo_no", "")).strip(),
-            "item_description": str(inv.get("item_description", "")).strip(),
-            "amount": float(inv.get("amount") or 0.0),
-            "eway_bill": str(inv.get("eway_bill", "")).strip(),
-            "asn_no": str(inv.get("asn_no", "")).strip(),
-            "mode_of_transp": str(inv.get("mode_of_transp", "")).strip(),
-            "dock_code": str(inv.get("dock_code", "")).strip(),
+            "challan_no": str(inv.get("challan_no", "") or "").strip(),
+            "bill_to": str(inv.get("bill_to", "") or "").strip(),
+            "po_wo_no": str(inv.get("po_wo_no", "") or "").strip(),
+            "item_description": str(inv.get("item_description", "") or "").strip(),
+            "amount": amt,
+            "eway_bill": str(inv.get("eway_bill", "") or "").strip().upper(),
+            "asn_no": str(inv.get("asn_no", "") or "").strip(),
+            "mode_of_transp": str(inv.get("mode_of_transp", "") or "").strip(),
+            "dock_code": str(inv.get("dock_code", "") or "").strip(),
             "delivery_date": db.clean_date_string(inv.get("delivery_date", "")),
-            "delivery_site": str(inv.get("delivery_site", "")).strip(),
-            "mrn_status": str(inv.get("mrn_status", "PENDING")).strip().upper(),
+            "delivery_site": str(inv.get("delivery_site", "") or "").strip(),
+            "mrn_status": str(inv.get("mrn_status", "PENDING") or "PENDING").strip().upper(),
             "mrn_date": db.clean_date_string(inv.get("mrn_date", "")),
-            "mrn_no": str(inv.get("mrn_no", "")).strip(),
-            "remarks": str(inv.get("remarks", "")).strip()
+            "mrn_no": str(inv.get("mrn_no", "") or "").strip(),
+            "remarks": str(inv.get("remarks", "") or "").strip()
         })
         
     normalized_chal = []
     for chal in challans:
         normalized_chal.append({
-            "doc_no": str(chal.get("doc_no", "")).strip(),
+            "doc_no": str(chal.get("doc_no", "") or "").strip(),
             "doc_date": db.clean_date_string(chal.get("doc_date", "")),
-            "invoice_no": str(chal.get("invoice_no", "")).strip(),
-            "challan_no": str(chal.get("challan_no", "")).strip(),
-            "bill_to": str(chal.get("bill_to", "")).strip(),
-            "po_wo_no": str(chal.get("po_wo_no", "")).strip(),
-            "delivery_site": str(chal.get("delivery_site", "")).strip(),
-            "po_status": str(chal.get("po_status", "")).strip(),
-            "item_description": str(chal.get("item_description", "")).strip(),
-            "deliver_qty": str(chal.get("deliver_qty", "")).strip(),
-            "uom": str(chal.get("uom", "")).strip(),
-            "unit_price": str(chal.get("unit_price", "")).strip(),
-            "po_qty": str(chal.get("po_qty", "")).strip(),
-            "mrn_status": str(chal.get("mrn_status", "PENDING")).strip().upper(),
+            "invoice_no": str(chal.get("invoice_no", "") or "").strip(),
+            "challan_no": str(chal.get("challan_no", "") or "").strip(),
+            "bill_to": str(chal.get("bill_to", "") or "").strip(),
+            "po_wo_no": str(chal.get("po_wo_no", "") or "").strip(),
+            "delivery_site": str(chal.get("delivery_site", "") or "").strip(),
+            "po_status": str(chal.get("po_status", "") or "").strip(),
+            "item_description": str(chal.get("item_description", "") or "").strip(),
+            "deliver_qty": str(chal.get("deliver_qty", "") or "").strip(),
+            "uom": str(chal.get("uom", "") or "").strip(),
+            "unit_price": str(chal.get("unit_price", "") or "").strip(),
+            "po_qty": str(chal.get("po_qty", "") or "").strip(),
+            "mrn_status": str(chal.get("mrn_status", "PENDING") or "PENDING").strip().upper(),
             "mrn_date": db.clean_date_string(chal.get("mrn_date", "")),
-            "mrn_no": str(chal.get("mrn_no", "")).strip(),
-            "remarks": str(chal.get("remarks", "")).strip()
+            "mrn_no": str(chal.get("mrn_no", "") or "").strip(),
+            "remarks": str(chal.get("remarks", "") or "").strip()
         })
         
     # Sort to ensure deterministic hashing
