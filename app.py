@@ -372,6 +372,12 @@ def get_documents():
     company = request.args.get('company')
     doc_type = request.args.get('doc_type')
     
+    # Strictly sanitize company filter so requests never leak or combine all companies
+    if not company or company.strip() in ("", "undefined", "null", "None"):
+        company = "SK Agro"
+    else:
+        company = company.strip()
+
     if company:
         try:
             import gsheet

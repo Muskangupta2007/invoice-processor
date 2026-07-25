@@ -684,12 +684,20 @@ document.addEventListener("DOMContentLoaded", () => {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
         }
 
-        fetch(`/api/invoices?company=${encodeURIComponent(state.activeCompany)}&doc_type=${encodeURIComponent(state.activeDocType)}`, {
+        const currentReqCompany = state.activeCompany;
+        const currentReqDocType = state.activeDocType;
+
+        fetch(`/api/invoices?company=${encodeURIComponent(currentReqCompany)}&doc_type=${encodeURIComponent(currentReqDocType)}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
         .then(res => res.json())
         .then(data => {
+            if (state.activeCompany !== currentReqCompany || state.activeDocType !== currentReqDocType) {
+                console.log(`[RACE GUARD] Discarding fetchData response for ${currentReqCompany} (${currentReqDocType}) because active is now ${state.activeCompany} (${state.activeDocType})`);
+                return;
+            }
+
             console.log("[DEBUG] /api/invoices response:", data.status, "| count:", data.invoices ? data.invoices.length : 'N/A');
             if (data.status === "success") {
                 state.invoices = data.invoices || [];
@@ -1172,6 +1180,11 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(checkAuthResponse)
         .then(res => res.json())
         .then(data => {
+            if (state.activeCompany !== comp || ledgerModuleFilter.value !== docType) {
+                console.log(`[RACE GUARD] Discarding fetchLedger response for ${comp} (${docType})`);
+                return;
+            }
+
             if (data.status === "success") {
                 state.invoices = data.invoices;
                 renderLedgerTable(data.invoices, docType);
