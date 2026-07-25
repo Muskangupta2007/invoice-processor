@@ -389,6 +389,13 @@ def get_documents():
     company = request.args.get('company')
     doc_type = request.args.get('doc_type')
     
+    if company:
+        try:
+            import gsheet
+            gsheet.sync_from_google_sheet(company)
+        except Exception as ex:
+            print(f"[API /api/invoices] Error syncing from Google Sheet for {company}: {ex}")
+
     try:
         documents = db.get_documents(company, doc_type)
         for doc in documents:
