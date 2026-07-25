@@ -2589,4 +2589,16 @@ function writeSheetData(sheetName, dataList) {
     } else {
         showLoginScreen();
     }
+
+    // Live auto-refresh polling every 10 seconds to sync Google Sheet edits live without page reloads
+    setInterval(() => {
+        if (getAuthToken()) {
+            const currentHash = window.location.hash || "#dashboard";
+            if (currentHash === "#dashboard" || currentHash === "#") {
+                fetchData();
+            } else if (currentHash === "#documents") {
+                renderDocumentManager();
+            }
+        }
+    }, 10000);
 });
