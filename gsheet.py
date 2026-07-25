@@ -449,26 +449,29 @@ def sync_from_google_sheet(company):
             for row in cursor.fetchall()
         }
 
-        # 5. Overwrite company documents inside database transaction
+        # 5. Non-locking Upsert company documents inside database transaction
         try:
-            cursor.execute("DELETE FROM documents WHERE company = ?", (company,))
+            non_pk_fields = [
+                'doc_date', 'invoice_no', 'challan_no', 'bill_to', 'po_wo_no',
+                'item_description', 'amount', 'eway_bill', 'eway_bill_no', 'asn_no',
+                'mode_of_transp', 'dock_code', 'delivery_date', 'delivery_site',
+                'mrn_status', 'mrn_date', 'mrn_no', 'remarks', 'deliver_qty',
+                'uom', 'unit_price', 'po_status', 'po_qty'
+            ]
+            update_assignments = ", ".join([f"{f} = excluded.{f}" for f in non_pk_fields])
             
-            # Insert Invoices
-            for inv in parsed_invoices:
-                # Remove S.No if exists
-                inv_to_save = {k: v for k, v in inv.items() if k != 'S.No'}
-                columns = ", ".join(inv_to_save.keys())
-                placeholders = ", ".join(["?"] * len(inv_to_save))
-                values = tuple(inv_to_save.values())
-                cursor.execute(f"INSERT INTO documents ({columns}) VALUES ({placeholders})", values)
+            # Upsert Invoices & Challans
+            for item in (parsed_invoices + parsed_challans):
+                item_to_save = {k: v for k, v in item.items() if k != 'S.No'}
+                columns = ", ".join(item_to_save.keys())
+                placeholders = ", ".join(["?"] * len(item_to_save))
+                values = tuple(item_to_save.values())
                 
-            # Insert Challans
-            for chal in parsed_challans:
-                chal_to_save = {k: v for k, v in chal.items() if k != 'S.No'}
-                columns = ", ".join(chal_to_save.keys())
-                placeholders = ", ".join(["?"] * len(chal_to_save))
-                values = tuple(chal_to_save.values())
-                cursor.execute(f"INSERT INTO documents ({columns}) VALUES ({placeholders})", values)
+                query = (
+                    f"INSERT INTO documents ({columns}) VALUES ({placeholders}) "
+                    f"ON CONFLICT (company, doc_type, doc_no) DO UPDATE SET {update_assignments}"
+                )
+                cursor.execute(query, values)
                 
             conn.commit()
         except Exception as db_err:

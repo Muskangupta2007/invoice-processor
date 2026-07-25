@@ -1565,10 +1565,10 @@ def start_excel_watcher():
             time.sleep(2.0)
             now = time.time()
             
-            # --- Google Sheets Periodic Sync Check (runs every 10 seconds) ---
+            # --- Google Sheets Periodic Sync Check (runs every 30 seconds) ---
             for comp in COMPANIES:
                 sync_url = get_setting(f"gsheet_sync_url_{comp.lower().replace(' ', '_')}")
-                if sync_url and (now - last_gsheet_poll[comp] > 10.0):
+                if sync_url and (now - last_gsheet_poll[comp] > 30.0):
                     last_gsheet_poll[comp] = now
                     try:
                         import gsheet
