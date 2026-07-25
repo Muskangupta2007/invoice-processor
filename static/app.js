@@ -2205,13 +2205,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (excel_dir !== undefined) payload.excel_storage_directory = excel_dir;
         if (teams_webhook !== undefined) payload.teams_webhook_url = teams_webhook;
 
-        // Save Google Sheets values to payload
-        if (gsheet_url_sk_agro !== undefined) payload.gsheet_url_sk_agro = gsheet_url_sk_agro;
-        if (gsheet_sync_url_sk_agro !== undefined) payload.gsheet_sync_url_sk_agro = gsheet_sync_url_sk_agro;
-        if (gsheet_url_sk_electricals !== undefined) payload.gsheet_url_sk_electricals = gsheet_url_sk_electricals;
-        if (gsheet_sync_url_sk_electricals !== undefined) payload.gsheet_sync_url_sk_electricals = gsheet_sync_url_sk_electricals;
-        if (gsheet_url_triotech !== undefined) payload.gsheet_url_triotech = gsheet_url_triotech;
-        if (gsheet_sync_url_triotech !== undefined) payload.gsheet_sync_url_triotech = gsheet_sync_url_triotech;
+        // Save Google Sheets values to payload (only if non-empty, preventing accidental blanking)
+        if (gsheet_url_sk_agro) payload.gsheet_url_sk_agro = gsheet_url_sk_agro;
+        if (gsheet_sync_url_sk_agro) payload.gsheet_sync_url_sk_agro = gsheet_sync_url_sk_agro;
+        if (gsheet_url_sk_electricals) payload.gsheet_url_sk_electricals = gsheet_url_sk_electricals;
+        if (gsheet_sync_url_sk_electricals) payload.gsheet_sync_url_sk_electricals = gsheet_sync_url_sk_electricals;
+        if (gsheet_url_triotech) payload.gsheet_url_triotech = gsheet_url_triotech;
+        if (gsheet_sync_url_triotech) payload.gsheet_sync_url_triotech = gsheet_sync_url_triotech;
 
         fetch("/api/settings", {
             method: "POST",
