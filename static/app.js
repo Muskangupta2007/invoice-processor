@@ -10,9 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
         settings: {},
         settingsPassword: "",
         activeTab: "dashboard",
-        activeCompany: "SK Agro",      // Active selected company
+        activeCompany: localStorage.getItem("invosync_active_company") || "SK Agro",      // Active selected company
         activeDocType: "Invoice",     // Active selected module (Invoice/Challan)
-        companySelected: false,       // Tracks if user has entered a company workspace
+        companySelected: localStorage.getItem("invosync_company_selected") === "true",       // Tracks if user has entered a company workspace
         currentUploadedData: null,    
         vendorChart: null
     };
@@ -402,6 +402,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function enterWorkspace(company) {
         state.activeCompany = company;
         state.companySelected = true;
+        localStorage.setItem("invosync_active_company", company);
+        localStorage.setItem("invosync_company_selected", "true");
         
         portalView.style.display = "none";
         workspaceView.style.display = "block";
@@ -412,6 +414,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function leaveWorkspace() {
         state.companySelected = false;
+        localStorage.setItem("invosync_company_selected", "false");
         
         portalView.style.display = "block";
         workspaceView.style.display = "none";
@@ -2595,7 +2598,7 @@ function writeSheetData(sheetName, dataList) {
     setInterval(() => {
         if (getAuthToken()) {
             const currentHash = window.location.hash || "#dashboard";
-            if (currentHash === "#dashboard" || currentHash === "#") {
+            if ((currentHash === "#dashboard" || currentHash === "#") && state.companySelected) {
                 fetchData();
             } else if (currentHash === "#documents") {
                 renderDocumentManager();
