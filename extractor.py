@@ -657,7 +657,10 @@ def extract_true_invoice_date(result_json, content, default_date=None):
         # Pass B: Look for cell containing both 'Invoice No.' and 'Dated' or date in same row
         for c in cells:
             cell_text = str(c.get("content") or "").strip()
-            if "invoice no" in cell_text.lower() or "dated" in cell_text.lower():
+            cell_lower = cell_text.lower()
+            if "invoice no" in cell_lower or "dated" in cell_lower:
+                if any(bad in cell_lower for bad in ["po date", "p.o. date", "order date", "buyer date", "lr date", "dispatch date", "delivery date", "eway date", "challan date"]):
+                    continue
                 valid = parse_and_validate_date(cell_text)
                 if valid:
                     return valid
@@ -672,6 +675,8 @@ def extract_true_invoice_date(result_json, content, default_date=None):
                 valid = parse_and_validate_date(val_text)
                 if valid:
                     return valid
+
+    NON_INV_DATES = ["po date", "p.o. date", "order date", "buyer date", "lr date", "dispatch date", "delivery date", "delivery note date", "eway date", "challan date", "ch date", "gr date"]
 
     # 3. Spatial Side-by-Side Layout Line Inspection (top 45% of page)
     pages = analyze_result.get("pages", [])
@@ -697,6 +702,8 @@ def extract_true_invoice_date(result_json, content, default_date=None):
                     if not any(bad in line_lower for bad in ["buyer", "order", "po", "lr", "challan", "delivery note", "dispatch"]):
                         for nxt_line in lines[idx: idx + 5]:
                             nxt_text = str(nxt_line.get("content") or "").strip()
+                            if any(bad in nxt_text.lower() for bad in NON_INV_DATES):
+                                continue
                             valid = parse_and_validate_date(nxt_text)
                             if valid:
                                 return valid
@@ -705,6 +712,8 @@ def extract_true_invoice_date(result_json, content, default_date=None):
                 if "invoice no" in line_lower or "invoice id" in line_lower:
                     for nxt_line in lines[idx: idx + 5]:
                         nxt_text = str(nxt_line.get("content") or "").strip()
+                        if any(bad in nxt_text.lower() for bad in NON_INV_DATES):
+                            continue
                         valid = parse_and_validate_date(nxt_text)
                         if valid:
                             return valid
@@ -717,6 +726,8 @@ def extract_true_invoice_date(result_json, content, default_date=None):
         if any(k in l_lower for k in ["dated", "invoice date", "date of invoice", "inv date"]):
             if not any(bad in l_lower for bad in ["buyer", "order", "po", "lr", "challan", "delivery note", "dispatch"]):
                 for nxt_text in ocr_lines[idx: idx + 5]:
+                    if any(bad in nxt_text.lower() for bad in NON_INV_DATES):
+                        continue
                     valid = parse_and_validate_date(nxt_text)
                     if valid:
                         return valid
