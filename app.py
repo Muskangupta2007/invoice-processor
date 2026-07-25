@@ -315,14 +315,14 @@ def save_settings():
     if gsheet_sync_url_triotech is not None:
         db.save_setting("gsheet_sync_url_triotech", gsheet_sync_url_triotech.strip())
         
+    import threading
     try:
-        db.sync_to_excel()
+        threading.Thread(target=db.sync_to_excel, daemon=True).start()
     except Exception as e:
-        print(f"Error syncing excel files on settings change: {e}")
+        print(f"Error starting background excel sync on settings change: {e}")
         
     # Trigger initial push sync to Google Sheets if sync URLs were updated
     import gsheet
-    import threading
     for comp in db.COMPANIES:
         comp_key = comp.lower().replace(' ', '_')
         if data.get(f"gsheet_sync_url_{comp_key}") is not None and data.get(f"gsheet_sync_url_{comp_key}").strip() != "":

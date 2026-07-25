@@ -2213,6 +2213,10 @@ document.addEventListener("DOMContentLoaded", () => {
         payload.gsheet_url_triotech = gsheet_url_triotech;
         payload.gsheet_sync_url_triotech = gsheet_sync_url_triotech;
 
+        saveSettingsBtn.disabled = true;
+        const originalBtnHtml = saveSettingsBtn.innerHTML;
+        saveSettingsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving Configurations...`;
+
         fetch("/api/settings", {
             method: "POST",
             headers: getSettingsHeaders(true),
@@ -2229,8 +2233,10 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .then(res => res.json())
         .then(data => {
+            saveSettingsBtn.disabled = false;
+            saveSettingsBtn.innerHTML = originalBtnHtml;
             if (data.status === "success") {
-                showToast("System configurations saved successfully!");
+                showToast("System configurations saved successfully!", "success");
                 
                 // If admin password was changed, update the client's token
                 if (admin_pass) {
@@ -2244,11 +2250,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 fetchSettings();
             } else {
-                showToast(data.message, "danger");
+                showToast(data.message || "Failed to save configurations.", "danger");
             }
         })
         .catch(err => {
+            saveSettingsBtn.disabled = false;
+            saveSettingsBtn.innerHTML = originalBtnHtml;
             console.error("Save settings error:", err);
+            showToast("Error saving configurations. Please try again.", "danger");
         });
     });
 
