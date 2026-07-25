@@ -392,7 +392,8 @@ def get_documents():
     if company:
         try:
             import gsheet
-            gsheet.sync_from_google_sheet(company)
+            import threading
+            threading.Thread(target=gsheet.sync_from_google_sheet, args=(company,), daemon=True).start()
         except Exception as ex:
             print(f"[API /api/invoices] Error syncing from Google Sheet for {company}: {ex}")
 
