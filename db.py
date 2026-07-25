@@ -1548,14 +1548,8 @@ last_known_mtime = {}
 
 def start_excel_watcher():
     def watcher_thread():
-        # Perform initial startup sync from Google Sheets if configured
-        print("[Watcher] Performing initial startup sync from Google Sheets...")
-        for comp in COMPANIES:
-            try:
-                import gsheet
-                gsheet.sync_from_google_sheet(comp)
-            except Exception as e:
-                print(f"[Watcher] Error in initial startup sync for {comp}: {e}")
+        # Sleep 10s on startup to allow Gunicorn to bind to PORT and pass Render health checks instantly
+        time.sleep(10.0)
                     
         # Populate initial mtimes
         for comp in COMPANIES:
