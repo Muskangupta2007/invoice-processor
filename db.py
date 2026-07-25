@@ -130,22 +130,39 @@ def get_db_connection():
 def clean_date_string(date_str):
     if not date_str:
         return ""
-    date_str = str(date_str).strip()
-    if 'T' in date_str:
-        date_str = date_str.split('T')[0]
-    parts = date_str.split(' ')
+    s = str(date_str).strip()
+    if 'T' in s:
+        s = s.split('T')[0]
+    parts = s.split(' ')
     if len(parts) > 1 and ':' in parts[1]:
-        date_str = parts[0]
+        s = parts[0]
         
-    # Standardize YYYY-MM-DD format to DD Month YYYY
-    try:
-        from datetime import datetime
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        return dt.strftime("%d %B %Y")
-    except ValueError:
-        pass
-        
-    return date_str
+    # Check if Google Sheet / Excel serial date number (e.g. 45824 or 46055)
+    if s.replace('.', '', 1).isdigit() and 4 <= len(s) <= 6:
+        try:
+            num = float(s)
+            if 35000 < num < 60000:
+                from datetime import datetime, timedelta
+                base = datetime(1899, 12, 30)
+                dt = base + timedelta(days=num)
+                return dt.strftime("%d %B %Y")
+        except Exception:
+            pass
+
+    formats = [
+        "%Y-%m-%d", "%d %B %Y", "%d %b %Y", "%d-%b-%Y", "%d-%b-%y",
+        "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d",
+        "%b %d, %Y", "%B %d, %Y", "%d %B, %Y", "%d %b, %Y"
+    ]
+    from datetime import datetime
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt.strftime("%d %B %Y")
+        except ValueError:
+            continue
+
+    return s
 
 def get_excel_storage_dir():
     custom_dir = get_setting("excel_storage_directory", "")
@@ -1544,10 +1561,10 @@ def start_excel_watcher():
             time.sleep(2.0)
             now = time.time()
             
-            # --- Google Sheets Periodic Sync Check (runs every 30 seconds) ---
+            # --- Google Sheets Periodic Sync Check (runs every 10 seconds) ---
             for comp in COMPANIES:
                 sync_url = get_setting(f"gsheet_sync_url_{comp.lower().replace(' ', '_')}")
-                if sync_url and (now - last_gsheet_poll[comp] > 90.0):
+                if sync_url and (now - last_gsheet_poll[comp] > 10.0):
                     last_gsheet_poll[comp] = now
                     try:
                         import gsheet

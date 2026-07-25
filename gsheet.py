@@ -17,7 +17,7 @@ def compute_data_hash(invoices, challans):
     for inv in invoices:
         normalized_inv.append({
             "doc_no": str(inv.get("doc_no", "")).strip(),
-            "doc_date": str(inv.get("doc_date", "")).strip(),
+            "doc_date": db.clean_date_string(inv.get("doc_date", "")),
             "challan_no": str(inv.get("challan_no", "")).strip(),
             "bill_to": str(inv.get("bill_to", "")).strip(),
             "po_wo_no": str(inv.get("po_wo_no", "")).strip(),
@@ -27,10 +27,10 @@ def compute_data_hash(invoices, challans):
             "asn_no": str(inv.get("asn_no", "")).strip(),
             "mode_of_transp": str(inv.get("mode_of_transp", "")).strip(),
             "dock_code": str(inv.get("dock_code", "")).strip(),
-            "delivery_date": str(inv.get("delivery_date", "")).strip(),
+            "delivery_date": db.clean_date_string(inv.get("delivery_date", "")),
             "delivery_site": str(inv.get("delivery_site", "")).strip(),
             "mrn_status": str(inv.get("mrn_status", "PENDING")).strip(),
-            "mrn_date": str(inv.get("mrn_date", "")).strip(),
+            "mrn_date": db.clean_date_string(inv.get("mrn_date", "")),
             "mrn_no": str(inv.get("mrn_no", "")).strip(),
             "remarks": str(inv.get("remarks", "")).strip()
         })
@@ -39,7 +39,7 @@ def compute_data_hash(invoices, challans):
     for chal in challans:
         normalized_chal.append({
             "doc_no": str(chal.get("doc_no", "")).strip(),
-            "doc_date": str(chal.get("doc_date", "")).strip(),
+            "doc_date": db.clean_date_string(chal.get("doc_date", "")),
             "invoice_no": str(chal.get("invoice_no", "")).strip(),
             "challan_no": str(chal.get("challan_no", "")).strip(),
             "bill_to": str(chal.get("bill_to", "")).strip(),
@@ -52,7 +52,7 @@ def compute_data_hash(invoices, challans):
             "unit_price": str(chal.get("unit_price", "")).strip(),
             "po_qty": str(chal.get("po_qty", "")).strip(),
             "mrn_status": str(chal.get("mrn_status", "PENDING")).strip(),
-            "mrn_date": str(chal.get("mrn_date", "")).strip(),
+            "mrn_date": db.clean_date_string(chal.get("mrn_date", "")),
             "mrn_no": str(chal.get("mrn_no", "")).strip(),
             "remarks": str(chal.get("remarks", "")).strip()
         })
@@ -260,10 +260,9 @@ def sync_from_google_sheet(company):
     """
     comp_key = company.lower().replace(' ', '_')
     
-    # Prevent pulling stale data from Google Sheets if a local update push occurred recently
+    # Prevent pulling stale data if a local push is currently in-flight
     last_push = last_push_timestamps.get(comp_key, 0)
-    if time.time() - last_push < 60.0:
-        print(f"[Google Sheets] Skipping pull sync for {company}: push sync occurred recently ({int(time.time() - last_push)}s ago).")
+    if time.time() - last_push < 2.0:
         return True
 
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
