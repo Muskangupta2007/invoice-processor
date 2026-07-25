@@ -29,7 +29,7 @@ def compute_data_hash(invoices, challans):
             "dock_code": str(inv.get("dock_code", "")).strip(),
             "delivery_date": db.clean_date_string(inv.get("delivery_date", "")),
             "delivery_site": str(inv.get("delivery_site", "")).strip(),
-            "mrn_status": str(inv.get("mrn_status", "PENDING")).strip(),
+            "mrn_status": str(inv.get("mrn_status", "PENDING")).strip().upper(),
             "mrn_date": db.clean_date_string(inv.get("mrn_date", "")),
             "mrn_no": str(inv.get("mrn_no", "")).strip(),
             "remarks": str(inv.get("remarks", "")).strip()
@@ -51,7 +51,7 @@ def compute_data_hash(invoices, challans):
             "uom": str(chal.get("uom", "")).strip(),
             "unit_price": str(chal.get("unit_price", "")).strip(),
             "po_qty": str(chal.get("po_qty", "")).strip(),
-            "mrn_status": str(chal.get("mrn_status", "PENDING")).strip(),
+            "mrn_status": str(chal.get("mrn_status", "PENDING")).strip().upper(),
             "mrn_date": db.clean_date_string(chal.get("mrn_date", "")),
             "mrn_no": str(chal.get("mrn_no", "")).strip(),
             "remarks": str(chal.get("remarks", "")).strip()
@@ -443,27 +443,6 @@ def sync_from_google_sheet(company):
             }
             for row in cursor.fetchall()
         }
-
-        # Preserve local DONE status if Google Sheet pull has stale PENDING status
-        for inv in parsed_invoices:
-            doc_no = inv.get('doc_no')
-            if doc_no in existing_status_map:
-                prev = existing_status_map[doc_no]
-                incoming_status = str(inv.get('mrn_status') or '').strip().upper()
-                if prev['mrn_status'] == 'DONE' and incoming_status != 'DONE':
-                    inv['mrn_status'] = 'DONE'
-                    if not inv.get('mrn_no') and prev['mrn_no']:
-                        inv['mrn_no'] = prev['mrn_no']
-                    if not inv.get('mrn_date') and prev['mrn_date']:
-                        inv['mrn_date'] = prev['mrn_date']
-
-        for chal in parsed_challans:
-            doc_no = chal.get('doc_no')
-            if doc_no in existing_status_map:
-                prev = existing_status_map[doc_no]
-                incoming_status = str(chal.get('mrn_status') or '').strip().upper()
-                if prev['mrn_status'] == 'DONE' and incoming_status != 'DONE':
-                    chal['mrn_status'] = 'DONE'
 
         # 5. Overwrite company documents inside database transaction
         try:
