@@ -2368,7 +2368,7 @@ function getRowsData(sheet) {
   var startRow = headerRowIndex + 1;
   if (lastRow < startRow) return rows;
   
-  var values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getValues();
+  var values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getDisplayValues();
   for (var i = 0; i < values.length; i++) {
     var row = {};
     var hasData = false;

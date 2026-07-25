@@ -132,7 +132,17 @@ def clean_date_string(date_str):
         return ""
     s = str(date_str).strip()
     if 'T' in s:
-        s = s.split('T')[0]
+        try:
+            from datetime import datetime, timezone, timedelta
+            clean_iso = s.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(clean_iso)
+            if dt.tzinfo:
+                ist = timezone(timedelta(hours=5, minutes=30))
+                dt = dt.astimezone(ist)
+            return dt.strftime("%d %B %Y")
+        except Exception:
+            s = s.split('T')[0]
+
     parts = s.split(' ')
     if len(parts) > 1 and ':' in parts[1]:
         s = parts[0]
