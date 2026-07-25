@@ -158,23 +158,6 @@ def add_header(response):
     else:
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
-
-    accept_encoding = request.headers.get('Accept-Encoding', '')
-    if (
-        'gzip' in accept_encoding.lower()
-        and response.status_code == 200
-        and not response.direct_passthrough
-    ):
-        content_type = response.content_type or ''
-        if any(ct in content_type for ct in ['json', 'html', 'css', 'javascript', 'text']):
-            data = response.get_data()
-            if len(data) > 500:
-                compressed_data = gzip.compress(data)
-                response.set_data(compressed_data)
-                response.headers['Content-Encoding'] = 'gzip'
-                response.headers['Content-Length'] = len(compressed_data)
-                response.headers['Vary'] = 'Accept-Encoding'
-
     return response
 
 # --- AUTH ENDPOINTS WITH ACCOUNT LOCKOUT & SECURE HASHES ---
