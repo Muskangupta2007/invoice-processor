@@ -299,20 +299,20 @@ def save_settings():
     if excel_dir is not None:
         db.save_setting("excel_storage_directory", excel_dir.strip())
         
-    # Save Google Sheets settings (only if non-empty string is provided, preserving existing URLs)
-    if gsheet_url_sk_agro is not None and gsheet_url_sk_agro.strip() != "":
+    # Save Google Sheets settings
+    if gsheet_url_sk_agro is not None:
         db.save_setting("gsheet_url_sk_agro", gsheet_url_sk_agro.strip())
-    if gsheet_sync_url_sk_agro is not None and gsheet_sync_url_sk_agro.strip() != "":
+    if gsheet_sync_url_sk_agro is not None:
         db.save_setting("gsheet_sync_url_sk_agro", gsheet_sync_url_sk_agro.strip())
         
-    if gsheet_url_sk_electricals is not None and gsheet_url_sk_electricals.strip() != "":
+    if gsheet_url_sk_electricals is not None:
         db.save_setting("gsheet_url_sk_electricals", gsheet_url_sk_electricals.strip())
-    if gsheet_sync_url_sk_electricals is not None and gsheet_sync_url_sk_electricals.strip() != "":
+    if gsheet_sync_url_sk_electricals is not None:
         db.save_setting("gsheet_sync_url_sk_electricals", gsheet_sync_url_sk_electricals.strip())
         
-    if gsheet_url_triotech is not None and gsheet_url_triotech.strip() != "":
+    if gsheet_url_triotech is not None:
         db.save_setting("gsheet_url_triotech", gsheet_url_triotech.strip())
-    if gsheet_sync_url_triotech is not None and gsheet_sync_url_triotech.strip() != "":
+    if gsheet_sync_url_triotech is not None:
         db.save_setting("gsheet_sync_url_triotech", gsheet_sync_url_triotech.strip())
         
     try:
