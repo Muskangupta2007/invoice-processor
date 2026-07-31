@@ -245,8 +245,17 @@ def clean_challan_no(val, doc_no=None):
     return s_val
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+    except Exception as conn_err:
+        print(f"[DB Init] Critical Error: Failed to connect to database on startup: {conn_err}")
+        try:
+            start_excel_watcher()
+        except Exception:
+            pass
+        return False
     
     try:
         cursor.execute("""
@@ -392,7 +401,10 @@ def init_db():
         try: conn.rollback()
         except Exception: pass
     
-    conn.close()
+    try:
+        conn.close()
+    except Exception:
+        pass
     
     try:
         sync_from_excel()
