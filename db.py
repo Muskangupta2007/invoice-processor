@@ -95,26 +95,11 @@ class PostgresConnectionWrapper:
             self.conn.close()
 
 def get_db_connection():
-    global db_pool
     db_url = os.environ.get('DATABASE_URL')
     if db_url and HAS_PSYCOPG2:
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
             
-        if db_pool is None and ThreadedConnectionPool:
-            try:
-                db_pool = ThreadedConnectionPool(1, 20, db_url)
-                print("[DB Pool] Connection pool initialized successfully.")
-            except Exception as e:
-                print(f"[DB Pool] Error initializing pool: {e}")
-                
-        if db_pool:
-            try:
-                conn = db_pool.getconn()
-                return PostgresConnectionWrapper(conn, is_from_pool=True)
-            except Exception as e:
-                print(f"[DB Pool] Failed to fetch connection: {e}. Falling back to single connection.")
-                
         conn = psycopg2.connect(db_url)
         return PostgresConnectionWrapper(conn)
     else:
