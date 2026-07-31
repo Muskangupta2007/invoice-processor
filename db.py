@@ -1212,7 +1212,14 @@ def sync_from_excel():
     cursor = conn.cursor()
     
     cursor.execute("SELECT count(*) FROM documents")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    if isinstance(row, dict):
+        count = list(row.values())[0]
+    elif row:
+        count = row[0]
+    else:
+        count = 0
+
     if count > 0:
         conn.close()
         return
