@@ -100,7 +100,8 @@ def get_db_connection():
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
             
-        conn = psycopg2.connect(db_url)
+        # Add connect_timeout to prevent Gunicorn boot hanging on unreachable DB
+        conn = psycopg2.connect(db_url, connect_timeout=5)
         return PostgresConnectionWrapper(conn)
     else:
         conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -301,13 +302,34 @@ def init_db():
     db_url = os.environ.get('DATABASE_URL')
     if db_url and HAS_PSYCOPG2:
         try:
-            # Check if 'id' column exists in PostgreSQL
-            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='documents' AND column_name='id'")
+            # Check if 'id' column exists in public schema of PostgreSQL
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                  AND table_name = 'documents' 
+                  AND column_name = 'id'
+            """)
             if not cursor.fetchone():
                 print("[DB Migration] Migrating 'documents' table in PostgreSQL to add 'id' column...")
+                
+                # Query the actual primary key constraint name from information_schema
                 try:
-                    # Drop existing primary key constraint if it exists (e.g. documents_pkey)
-                    cursor.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_pkey CASCADE")
+                    cursor.execute("""
+                        SELECT constraint_name 
+                        FROM information_schema.table_constraints 
+                        WHERE table_schema = 'public' 
+                          AND table_name = 'documents' 
+                          AND constraint_type = 'PRIMARY KEY'
+                    """)
+                    pkey_row = cursor.fetchone()
+                    if pkey_row:
+                        constraint_name = pkey_row['constraint_name']
+                        print(f"[DB Migration] Dropping primary key constraint: {constraint_name}")
+                        cursor.execute(f"ALTER TABLE documents DROP CONSTRAINT IF EXISTS {constraint_name} CASCADE")
+                    else:
+                        # Fallback drop
+                        cursor.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_pkey CASCADE")
                 except Exception as pkey_err:
                     print(f"[DB Migration] Warning dropping primary key: {pkey_err}")
                 
