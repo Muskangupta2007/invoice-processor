@@ -507,8 +507,8 @@ def extract_mode_of_transport(result_json_or_content, raw_content=None, default_
                     cleaned = clean_mode_of_transport(m.group(1).strip())
                     if cleaned:
                         return cleaned
-                for nxt_line in lines[idx + 1: idx + 4]:
-                    nxt_text = str(nxt_line.get("content") or "").strip()
+                if idx + 1 < len(lines):
+                    nxt_text = str(lines[idx + 1].get("content") or "").strip()
                     cleaned = clean_mode_of_transport(nxt_text)
                     if cleaned:
                         return cleaned
@@ -524,8 +524,8 @@ def extract_mode_of_transport(result_json_or_content, raw_content=None, default_
                 cleaned = clean_mode_of_transport(m.group(1).strip())
                 if cleaned:
                     return cleaned
-            for nxt_text in ocr_lines[idx + 1: idx + 4]:
-                cleaned = clean_mode_of_transport(nxt_text)
+            if idx + 1 < len(ocr_lines):
+                cleaned = clean_mode_of_transport(ocr_lines[idx + 1])
                 if cleaned:
                     return cleaned
 
