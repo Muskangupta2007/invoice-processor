@@ -663,6 +663,25 @@ document.addEventListener("DOMContentLoaded", () => {
         state.invoices = [];
         state.reports = null;
 
+        // Immediately clear DOM elements so user doesn't see stale data from the previous company
+        if (typeof statTotalInvoices !== 'undefined' && statTotalInvoices) statTotalInvoices.innerText = "...";
+        if (typeof statTotalAmount !== 'undefined' && statTotalAmount) statTotalAmount.innerText = "...";
+        if (typeof statPendingMrns !== 'undefined' && statPendingMrns) statPendingMrns.innerText = "...";
+        if (typeof statSequenceGaps !== 'undefined' && statSequenceGaps) statSequenceGaps.innerText = "...";
+        if (typeof statPendingEway !== 'undefined' && statPendingEway) statPendingEway.innerText = "...";
+        if (typeof statWorkOrderPos !== 'undefined' && statWorkOrderPos) statWorkOrderPos.innerText = "...";
+
+        // Immediately clear Action Center lists
+        const missingMrnsListEl = document.getElementById("missing-mrns-list");
+        const ewayBillsListEl = document.getElementById("eway-bills-list");
+        const sequenceGapsListEl = document.getElementById("sequence-gaps-list");
+        const workorderPosListEl = document.getElementById("workorder-pos-list");
+        
+        if (missingMrnsListEl) missingMrnsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+        if (ewayBillsListEl) ewayBillsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+        if (sequenceGapsListEl) sequenceGapsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+        if (workorderPosListEl) workorderPosListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+
         // Immediately sync UI section visibility & labels to match activeDocType
         const cardPendingEway = document.getElementById("card-pending-eway");
         const ewayDivider = document.getElementById("eway-divider");
