@@ -707,6 +707,8 @@ def download_excel(company, file_type):
         
     if file_type == 'work_order':
         return download_report(company, 'work_order')
+        
+    excel_path = db.get_company_excel_path(company, file_type)
     if not os.path.exists(excel_path):
         db.sync_to_excel(company)
         
