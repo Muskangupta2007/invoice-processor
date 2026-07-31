@@ -381,8 +381,9 @@ def get_documents():
     if company:
         try:
             import gsheet
-            import threading
-            threading.Thread(target=gsheet.sync_from_google_sheet, args=(company,), daemon=True).start()
+            # Run pull synchronously to ensure Gunicorn doesn't kill the thread 
+            # and to immediately return the updated data to the client.
+            gsheet.sync_from_google_sheet(company)
         except Exception as ex:
             print(f"[API /api/invoices] Error syncing from Google Sheet for {company}: {ex}")
 

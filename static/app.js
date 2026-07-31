@@ -203,7 +203,9 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.removeItem("auth_token");
             showLoginScreen();
             showToast("Session expired. Please sign in again to continue.", "warning");
-            throw new Error("Unauthorized Access Redirecting to Login.");
+            const err = new Error("Unauthorized Access Redirecting to Login.");
+            err.isToastShown = true;
+            throw err;
         }
         return res;
     }
@@ -523,6 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             })
             .catch(err => {
+                if (err.isToastShown) return;
                 console.error("Open Excel error:", err);
                 showToast("Failed to launch Microsoft Excel. Downloading instead...", "warning");
                 // Fallback to direct download
@@ -730,6 +733,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         })
         .catch(err => {
+            if (err.isToastShown) return;
             console.error("[DEBUG] Error fetching invoices:", err);
             setTimeout(() => {
                 const currentHash = window.location.hash;
@@ -921,6 +925,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             }
                         })
                         .catch(err => {
+                            if (err.isToastShown) return;
                             console.error("Error saving inline E-Way Bill:", err);
                             showToast("Failed to save inline E-Way Bill.", "danger");
                             fetchData();
@@ -1212,6 +1217,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         })
         .catch(err => {
+            if (err.isToastShown) return;
             console.error("Error loading ledger:", err);
             showToast("Failed to connect to backend server.", "danger");
         });
@@ -1482,6 +1488,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         })
         .catch(err => {
+            if (err.isToastShown) return;
             console.error("Error deleting document:", err);
             showToast("Failed to delete document.", "danger");
         });
@@ -1580,6 +1587,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
             clearInterval(interval);
+            if (err && err.isToastShown) return;
             console.error("Upload error:", err);
             uploadStatus.style.display = "none";
             dropzone.style.display = "flex";
@@ -1743,6 +1751,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => {
             saveReviewBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Save & Lock Ledger';
             saveReviewBtn.disabled = false;
+            if (err && err.isToastShown) return;
             console.error("Save review error:", err);
             showToast("Failed to save document details.", "danger");
         });
@@ -2145,6 +2154,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         })
         .catch(err => {
+            if (err.isToastShown) return;
             console.error("Error saving edits:", err);
             showToast("Failed to save changes.", "danger");
         });
@@ -2257,8 +2267,10 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(res => {
             if (res.status === 400) {
                 return res.json().then(data => {
-                    showToast(data.message, "danger");
-                    throw new Error(data.message);
+                    showToast(data.message || "Failed to save configurations.", "danger");
+                    const err = new Error(data.message || "Failed to save configurations.");
+                    err.isToastShown = true;
+                    throw err;
                 });
             }
             return checkAuthResponse(res);
@@ -2289,7 +2301,9 @@ document.addEventListener("DOMContentLoaded", () => {
             saveSettingsBtn.disabled = false;
             saveSettingsBtn.innerHTML = originalBtnHtml;
             console.error("Save settings error:", err);
-            showToast("Error saving configurations. Please try again.", "danger");
+            if (!err.isToastShown) {
+                showToast("Error saving configurations. Please try again.", "danger");
+            }
         });
     });
 
@@ -2316,6 +2330,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => {
             testTeamsBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Test Notification';
             testTeamsBtn.disabled = false;
+            if (err.isToastShown) return;
             console.error("Teams test error:", err);
             showToast("Failed to send Teams test.", "danger");
         });
