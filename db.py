@@ -266,12 +266,13 @@ def init_db():
     try:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 company TEXT NOT NULL,
-                doc_type TEXT NOT NULL,
+                doc_type TEXT NOT NULL, /* 'Invoice' or 'Challan' */
                 doc_no TEXT NOT NULL,
                 doc_date TEXT,
-                invoice_no TEXT,
-                challan_no TEXT,
+                invoice_no TEXT, /* Associated Invoice for Challan */
+                challan_no TEXT, /* Associated Challan for Invoice */
                 bill_to TEXT,
                 po_wo_no TEXT,
                 item_description TEXT,
@@ -292,7 +293,8 @@ def init_db():
                 unit_price TEXT,
                 po_status TEXT,
                 po_qty TEXT,
-                PRIMARY KEY (company, doc_type, doc_no)
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(company, doc_type, doc_no)
             )
         """)
         conn.commit()
@@ -377,9 +379,19 @@ def init_db():
     
     conn.close()
     
+    try:
+        sync_from_excel()
+    except Exception as ex:
+        print(f"[DB Init] Error seeding from excel on boot: {ex}")
+        
     start_excel_watcher()
 
 def get_setting(key, default=None):
+    # Try fetching from environment variables first (great for persistent settings on ephemeral containers)
+    env_val = os.environ.get(key.upper())
+    if env_val is not None:
+        return env_val
+        
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
