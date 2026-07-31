@@ -287,6 +287,36 @@ def init_db():
         print(f"[DB Init] documents table warning: {e}")
         try: conn.rollback()
         except Exception: pass
+
+    # PostgreSQL schema migration: Add 'id' column if missing
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and HAS_PSYCOPG2:
+        try:
+            # Check if 'id' column exists in PostgreSQL
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='documents' AND column_name='id'")
+            if not cursor.fetchone():
+                print("[DB Migration] Migrating 'documents' table in PostgreSQL to add 'id' column...")
+                try:
+                    # Drop existing primary key constraint if it exists (e.g. documents_pkey)
+                    cursor.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_pkey CASCADE")
+                except Exception as pkey_err:
+                    print(f"[DB Migration] Warning dropping primary key: {pkey_err}")
+                
+                # Add 'id' column as SERIAL PRIMARY KEY
+                cursor.execute("ALTER TABLE documents ADD COLUMN id SERIAL PRIMARY KEY")
+                
+                # Enforce UNIQUE constraint on (company, doc_type, doc_no) so that ON CONFLICT works
+                try:
+                    cursor.execute("ALTER TABLE documents ADD CONSTRAINT documents_company_doc_type_doc_no_key UNIQUE (company, doc_type, doc_no)")
+                except Exception as unique_err:
+                    print(f"[DB Migration] Warning adding unique constraint: {unique_err}")
+                
+                conn.commit()
+                print("[DB Migration] PostgreSQL 'id' column and unique constraint successfully added.")
+        except Exception as mig_err:
+            print(f"[DB Migration] Error during PostgreSQL schema migration: {mig_err}")
+            try: conn.rollback()
+            except Exception: pass
     
     # Table for tracking user-deleted documents to permanently prevent background sync from resurrecting them
     try:
