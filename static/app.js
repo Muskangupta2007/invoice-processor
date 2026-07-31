@@ -762,24 +762,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateDashboardStats(data) {
-        statTotalInvoices.innerText = data.invoices.length;
+        if (statTotalInvoices) statTotalInvoices.innerText = data.invoices.length;
         
-        const gaps = data.sequence_check.missing_numbers || [];
-        statSequenceGaps.innerText = gaps.length;
+        const gaps = (data.sequence_check && data.sequence_check.missing_numbers) || [];
+        if (statSequenceGaps) statSequenceGaps.innerText = gaps.length;
         const seqCountEl = document.getElementById("sequence-audit-count");
         if (seqCountEl) seqCountEl.innerText = gaps.length;
 
         if (gaps.length > 0) {
             setAlertListClass(sequenceGapsList, false);
-            sequenceGapsList.innerHTML = gaps.map(gapNo => `
-                <div class="alert-item alert-item-warning">
-                    <span>Missing sequential ${state.activeDocType}: <strong>${gapNo}</strong></span>
-                    <span class="alert-link" onclick="window.location.hash='#upload'; document.querySelector('[data-tab=upload]').click()">Upload Now</span>
-                </div>
-            `).join("");
+            if (sequenceGapsList) {
+                sequenceGapsList.innerHTML = gaps.map(gapNo => `
+                    <div class="alert-item alert-item-warning">
+                        <span>Missing sequential ${state.activeDocType}: <strong>${gapNo}</strong></span>
+                        <span class="alert-link" onclick="window.location.hash='#upload'; document.querySelector('[data-tab=upload]').click()">Upload Now</span>
+                    </div>
+                `).join("");
+            }
         } else {
             setAlertListClass(sequenceGapsList, true);
-            sequenceGapsList.innerHTML = `<p>No sequence gaps detected for ${state.activeCompany} ${state.activeDocType}s!</p>`;
+            if (sequenceGapsList) {
+                sequenceGapsList.innerHTML = `<p>No sequence gaps detected for ${state.activeCompany} ${state.activeDocType}s!</p>`;
+            }
         }
     }
 
@@ -826,15 +830,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.activeDocType === 'Invoice') {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING MRNS";
             if (missingLabel) missingLabel.innerText = "Pending MRN List";
-            ewayDivider.style.display = "block";
-            ewayAlertSection.style.display = "block";
+            if (ewayDivider) ewayDivider.style.display = "block";
+            if (ewayAlertSection) ewayAlertSection.style.display = "block";
             if (workorderAlertSection) workorderAlertSection.style.display = "none";
             if (workorderDivider) workorderDivider.style.display = "none";
             
             const missingList = state.invoices.filter(inv =>
                 String(inv.mrn_status || '').toUpperCase() !== 'DONE'
             ).sort(docNumberSortKey);
-            statPendingMrns.innerText = missingList.length;
+            if (statPendingMrns) statPendingMrns.innerText = missingList.length;
             if (missingCount) missingCount.innerText = missingList.length;
 
             if (missingList.length > 0) {
@@ -868,7 +872,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (ewayNo) return false;
                 return ewayStatus === 'PENDING' || amt >= 50000;
             });
-            statPendingEway.innerText = pendingEwayList.length;
+            if (statPendingEway) statPendingEway.innerText = pendingEwayList.length;
             if (ewayCount) ewayCount.innerText = pendingEwayList.length;
 
             if (pendingEwayList.length > 0) {
@@ -939,8 +943,8 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             if (statPendingTitle) statPendingTitle.innerText = "PENDING POS";
             if (missingLabel) missingLabel.innerText = "Pending PO List";
-            ewayDivider.style.display = "none";
-            ewayAlertSection.style.display = "none";
+            if (ewayDivider) ewayDivider.style.display = "none";
+            if (ewayAlertSection) ewayAlertSection.style.display = "none";
             if (workorderAlertSection) workorderAlertSection.style.display = "block";
             if (workorderDivider) workorderDivider.style.display = "block";
             
@@ -950,7 +954,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return calculateOverallPoStatusFromDoc(inv) === 'Open';
             }).sort(docNumberSortKey);
 
-            statPendingMrns.innerText = pendingPoList.length;
+            if (statPendingMrns) statPendingMrns.innerText = pendingPoList.length;
             if (missingCount) missingCount.innerText = pendingPoList.length;
 
             if (pendingPoList.length > 0) {
@@ -1019,13 +1023,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateReportsStats() {
         if (!state.reports) return;
-        statTotalAmount.innerText = formatCurrency(state.reports.total_amt);
+        if (statTotalAmount) statTotalAmount.innerText = formatCurrency(state.reports.total_amt);
         
         if (state.activeDocType === 'Invoice') {
-            statPendingMrns.innerText = state.reports.pending_mrn;
-            statPendingEway.innerText = state.reports.pending_eway;
+            if (statPendingMrns) statPendingMrns.innerText = state.reports.pending_mrn;
+            if (statPendingEway) statPendingEway.innerText = state.reports.pending_eway;
         } else {
-            statPendingMrns.innerText = state.reports.pending_po;
+            if (statPendingMrns) statPendingMrns.innerText = state.reports.pending_po;
         }
         renderAlertLists();
     }
@@ -1033,6 +1037,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function drawChart() {
         const canvas = document.getElementById("vendorChart");
         if (!canvas) return;
+        if (!state.reports) return;
 
         if (state.vendorChart) {
             state.vendorChart.destroy();
