@@ -654,36 +654,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- FETCH DATA (DASHBOARD) ---
     
-    function fetchData() {
+    function fetchData(isBackground = false) {
         if (!getAuthToken()) {
             showLoginScreen();
             return;
         }
 
-        console.log("[DEBUG] fetchData called | company:", state.activeCompany, "| docType:", state.activeDocType);
+        console.log("[DEBUG] fetchData called | company:", state.activeCompany, "| docType:", state.activeDocType, "| isBackground:", isBackground);
 
-        // Immediately clear state so previous company/module data doesn't linger
-        state.invoices = [];
-        state.reports = null;
+        if (!isBackground) {
+            // Immediately clear state so previous company/module data doesn't linger
+            state.invoices = [];
+            state.reports = null;
 
-        // Immediately clear DOM elements so user doesn't see stale data from the previous company
-        if (typeof statTotalInvoices !== 'undefined' && statTotalInvoices) statTotalInvoices.innerText = "...";
-        if (typeof statTotalAmount !== 'undefined' && statTotalAmount) statTotalAmount.innerText = "...";
-        if (typeof statPendingMrns !== 'undefined' && statPendingMrns) statPendingMrns.innerText = "...";
-        if (typeof statSequenceGaps !== 'undefined' && statSequenceGaps) statSequenceGaps.innerText = "...";
-        if (typeof statPendingEway !== 'undefined' && statPendingEway) statPendingEway.innerText = "...";
-        if (typeof statWorkOrderPos !== 'undefined' && statWorkOrderPos) statWorkOrderPos.innerText = "...";
+            // Immediately clear DOM elements so user doesn't see stale data from the previous company
+            if (typeof statTotalInvoices !== 'undefined' && statTotalInvoices) statTotalInvoices.innerText = "...";
+            if (typeof statTotalAmount !== 'undefined' && statTotalAmount) statTotalAmount.innerText = "...";
+            if (typeof statPendingMrns !== 'undefined' && statPendingMrns) statPendingMrns.innerText = "...";
+            if (typeof statSequenceGaps !== 'undefined' && statSequenceGaps) statSequenceGaps.innerText = "...";
+            if (typeof statPendingEway !== 'undefined' && statPendingEway) statPendingEway.innerText = "...";
+            if (typeof statWorkOrderPos !== 'undefined' && statWorkOrderPos) statWorkOrderPos.innerText = "...";
 
-        // Immediately clear Action Center lists
-        const missingMrnsListEl = document.getElementById("missing-mrns-list");
-        const ewayBillsListEl = document.getElementById("eway-bills-list");
-        const sequenceGapsListEl = document.getElementById("sequence-gaps-list");
-        const workorderPosListEl = document.getElementById("workorder-pos-list");
-        
-        if (missingMrnsListEl) missingMrnsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-        if (ewayBillsListEl) ewayBillsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-        if (sequenceGapsListEl) sequenceGapsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-        if (workorderPosListEl) workorderPosListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+            // Immediately clear Action Center lists
+            const missingMrnsListEl = document.getElementById("missing-mrns-list");
+            const ewayBillsListEl = document.getElementById("eway-bills-list");
+            const sequenceGapsListEl = document.getElementById("sequence-gaps-list");
+            const workorderPosListEl = document.getElementById("workorder-pos-list");
+            
+            if (missingMrnsListEl) missingMrnsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+            if (ewayBillsListEl) ewayBillsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+            if (sequenceGapsListEl) sequenceGapsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+            if (workorderPosListEl) workorderPosListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+        }
 
         // Immediately sync UI section visibility & labels to match activeDocType
         const cardPendingEway = document.getElementById("card-pending-eway");
@@ -735,12 +737,14 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => {
             if (err.isToastShown) return;
             console.error("[DEBUG] Error fetching invoices:", err);
-            setTimeout(() => {
-                const currentHash = window.location.hash;
-                if (!currentHash || currentHash === "#dashboard" || currentHash === "#") {
-                    fetchData();
-                }
-            }, 3000);
+            if (!isBackground) {
+                setTimeout(() => {
+                    const currentHash = window.location.hash;
+                    if (!currentHash || currentHash === "#dashboard" || currentHash === "#") {
+                        fetchData();
+                    }
+                }, 3000);
+            }
         });
 
         fetch("/api/settings/status", {
@@ -1117,7 +1121,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- FETCH LEDGER TABLE ---
     
-    function fetchLedger() {
+    function fetchLedger(isBackground = false) {
         if (!getAuthToken()) {
             showLoginScreen();
             return;
@@ -1126,58 +1130,71 @@ document.addEventListener("DOMContentLoaded", () => {
         const comp = state.activeCompany;
         const docType = ledgerModuleFilter.value;
 
-        if (docType === "Challan") {
-            ledgerThead.innerHTML = `
-                <tr>
-                    <th class="col-sno">S.No</th>
-                    <th class="col-invoice">Delivery Challan No</th>
-                    <th>Item Description</th>
-                    <th>Deliver Qty</th>
-                    <th>UOM</th>
-                    <th>Unit Price</th>
-                    <th>Delivery Date</th>
-                    <th>Delivery Location</th>
-                    <th>PO Status</th>
-                    <th>PO Number</th>
-                    <th>PO Qty</th>
-                    <th>Difference</th>
-                    <th>Invoice Number</th>
-                    <th>Remarks</th>
-                    <th class="col-actions">Actions</th>
-                </tr>
-            `;
-        } else {
-            ledgerThead.innerHTML = `
-                <tr>
-                    <th class="col-sno">S.No</th>
-                    <th class="col-invoice">Invoice No</th>
-                    <th>Invoice Date</th>
-                    <th>Challan No</th>
-                    <th>Bill To</th>
-                    <th>PO/WO No</th>
-                    <th>Item Description</th>
-                    <th class="col-amount">Invoice Amt (₹)</th>
-                    <th>Eway Bill</th>
-                    <th>E way Bill no</th>
-                    <th>ASN No</th>
-                    <th>Mode of Transp</th>
-                    <th>Dock Code</th>
-                    <th>Delivery Date</th>
-                    <th>Delivery Site</th>
-                    <th>MRN Status</th>
-                    <th>MRN Date</th>
-                    <th>MRN No</th>
-                    <th>Remarks</th>
-                    <th class="col-actions">Actions</th>
-                </tr>
-            `;
-        }
+        if (!isBackground) {
+            if (docType === "Challan") {
+                ledgerThead.innerHTML = `
+                    <tr>
+                        <th class="col-sno">S.No</th>
+                        <th class="col-invoice">Delivery Challan No</th>
+                        <th>Item Description</th>
+                        <th>Deliver Qty</th>
+                        <th>UOM</th>
+                        <th>Unit Price</th>
+                        <th>Delivery Date</th>
+                        <th>Delivery Location</th>
+                        <th>PO Status</th>
+                        <th>PO Number</th>
+                        <th>PO Qty</th>
+                        <th>Difference</th>
+                        <th>Invoice Number</th>
+                        <th>Remarks</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                `;
+            } else {
+                ledgerThead.innerHTML = `
+                    <tr>
+                        <th class="col-sno">S.No</th>
+                        <th class="col-invoice">Invoice No</th>
+                        <th>Invoice Date</th>
+                        <th>Challan No</th>
+                        <th>Bill To</th>
+                        <th>PO/WO No</th>
+                        <th>Item Description</th>
+                        <th class="col-amount">Invoice Amt (₹)</th>
+                        <th>Eway Bill</th>
+                        <th>E way Bill no</th>
+                        <th>ASN No</th>
+                        <th>Mode of Transp</th>
+                        <th>Dock Code</th>
+                        <th>Delivery Date</th>
+                        <th>Delivery Site</th>
+                        <th>MRN Status</th>
+                        <th>MRN Date</th>
+                        <th>MRN No</th>
+                        <th>Remarks</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                `;
+            }
 
-        // Fast Path: If data is already in state for active company, render instantly
-        if (state.invoices && state.invoices.length > 0) {
-            const firstDoc = state.invoices[0];
-            if (firstDoc && String(firstDoc.company || '').toLowerCase() === String(comp).toLowerCase() && String(firstDoc.doc_type || '').toLowerCase() === String(docType).toLowerCase()) {
-                renderLedgerTable(state.invoices, docType);
+            // Fast Path: If data is already in state for active company, render instantly
+            if (state.invoices && state.invoices.length > 0) {
+                const firstDoc = state.invoices[0];
+                if (firstDoc && String(firstDoc.company || '').toLowerCase() === String(comp).toLowerCase() && String(firstDoc.doc_type || '').toLowerCase() === String(docType).toLowerCase()) {
+                    renderLedgerTable(state.invoices, docType);
+                } else {
+                    ledgerBody.innerHTML = `
+                        <tr class="table-placeholder">
+                            <td colspan="19">
+                                <div class="table-loading">
+                                    <i class="fa-solid fa-spinner fa-spin"></i>
+                                    <p>Loading ledger entries...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
             } else {
                 ledgerBody.innerHTML = `
                     <tr class="table-placeholder">
@@ -1190,17 +1207,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     </tr>
                 `;
             }
-        } else {
-            ledgerBody.innerHTML = `
-                <tr class="table-placeholder">
-                    <td colspan="19">
-                        <div class="table-loading">
-                            <i class="fa-solid fa-spinner fa-spin"></i>
-                            <p>Loading ledger entries...</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
         }
 
         fetch(`/api/invoices?company=${encodeURIComponent(comp)}&doc_type=${encodeURIComponent(docType)}`, {
@@ -2660,9 +2666,14 @@ function writeSheetData(sheetName, dataList) {
         if (getAuthToken()) {
             const currentHash = window.location.hash || "#dashboard";
             if ((currentHash === "#dashboard" || currentHash === "#") && state.companySelected) {
-                fetchData();
+                fetchData(true); // Pass true for isBackground!
             } else if (currentHash === "#documents") {
-                renderDocumentManager();
+                // Safely update ledger in background without losing user edit focus or modal states
+                const isEditingModal = document.getElementById("editModal")?.classList.contains("show") || false;
+                const isFocused = document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "SELECT" || document.activeElement.tagName === "TEXTAREA");
+                if (!isEditingModal && !isFocused) {
+                    fetchLedger(true); // Pass true for isBackground!
+                }
             }
         }
     }, 10000);
