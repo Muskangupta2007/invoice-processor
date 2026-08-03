@@ -549,9 +549,10 @@ def confirm_upload():
             notify_payload["invoice_date"] = notify_payload["doc_date"]
             notify_payload["invoice_amt"] = notify_payload["amount"]
             
-            teams.send_teams_notification(webhook_url, "new_invoice", notify_payload)
+            import threading
+            threading.Thread(target=teams.send_teams_notification, args=(webhook_url, "new_invoice", notify_payload), daemon=True).start()
             if notify_payload.get("mrn_status") == "PENDING" or not notify_payload.get("mrn_no"):
-                teams.send_teams_notification(webhook_url, "missing_mrn", notify_payload)
+                threading.Thread(target=teams.send_teams_notification, args=(webhook_url, "missing_mrn", notify_payload), daemon=True).start()
                 
         return jsonify({"status": "success", "message": f"{doc_type} '{doc_no}' successfully saved and locked."})
         
@@ -580,7 +581,8 @@ def update_document(company, doc_type, doc_no):
                 card_data = {
                     "message": f"MRN details updated for {doc_type} **{doc_no}** ({company}):\n\n* **MRN Status**: {updated_record.get('mrn_status')}\n* **MRN No**: {updated_record.get('mrn_no')}\n* **MRN Date**: {updated_record.get('mrn_date')}\n* **Remarks**: {updated_record.get('remarks')}"
                 }
-                teams.send_teams_notification(webhook_url, "update", card_data)
+                import threading
+                threading.Thread(target=teams.send_teams_notification, args=(webhook_url, "update", card_data), daemon=True).start()
                 
             return jsonify({"status": "success", "message": "Document details updated successfully."})
         else:

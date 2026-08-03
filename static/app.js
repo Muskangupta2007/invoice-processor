@@ -2085,6 +2085,29 @@ document.addEventListener("DOMContentLoaded", () => {
         const comp = editInvoiceNo.getAttribute("data-company") || state.activeCompany;
         const docType = editInvoiceNo.getAttribute("data-doc-type") || ledgerModuleFilter.value;
         
+        const editSubmitBtn = document.getElementById("edit-submit-btn");
+        const editCancelBtn = document.getElementById("edit-cancel-btn");
+        const originalBtnHtml = editSubmitBtn ? editSubmitBtn.innerHTML : '<i class="fa-solid fa-check"></i> Save Changes';
+
+        // Show visual feedback and prevent double clicks
+        if (editSubmitBtn) {
+            editSubmitBtn.disabled = true;
+            editSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+        }
+        if (editCancelBtn) {
+            editCancelBtn.disabled = true;
+        }
+
+        const restoreButtons = () => {
+            if (editSubmitBtn) {
+                editSubmitBtn.disabled = false;
+                editSubmitBtn.innerHTML = originalBtnHtml;
+            }
+            if (editCancelBtn) {
+                editCancelBtn.disabled = false;
+            }
+        };
+
         const updatedData = {
             remarks: editRemarks.value
         };
@@ -2163,6 +2186,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(checkAuthResponse)
         .then(res => res.json())
         .then(data => {
+            restoreButtons();
             if (data.status === "success") {
                 showToast("Document details updated successfully!");
                 closeEditDialog();
@@ -2176,6 +2200,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         })
         .catch(err => {
+            restoreButtons();
             if (err.isToastShown) return;
             console.error("Error saving edits:", err);
             showToast("Failed to save changes.", "danger");

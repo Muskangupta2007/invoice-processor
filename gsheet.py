@@ -509,7 +509,8 @@ def sync_from_google_sheet(company):
                     card_data = {
                         "message": f"MRN details updated via **Google Sheets** for {doc_type_label} **{doc_no}** ({company}):\n\n* **MRN Status**: {new_status}\n* **MRN No**: {new_mrn_no}\n* **MRN Date**: {doc.get('mrn_date')}\n* **Remarks**: {doc.get('remarks')}"
                     }
-                    teams.send_teams_notification(webhook_url, "update", card_data)
+                    import threading
+                    threading.Thread(target=teams.send_teams_notification, args=(webhook_url, "update", card_data), daemon=True).start()
                     
         print(f"[Google Sheets] Google Sheets sync to database completed for {company}.")
         return True
