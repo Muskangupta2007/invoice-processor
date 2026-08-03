@@ -94,13 +94,33 @@ class PostgresConnectionWrapper:
         else:
             self.conn.close()
 
+db_pool_lock = threading.Lock()
+
 def get_db_connection():
+    global db_pool
     db_url = os.environ.get('DATABASE_URL')
     if db_url and HAS_PSYCOPG2:
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
             
-        # Add connect_timeout to prevent Gunicorn boot hanging on unreachable DB
+        # Lazy initialization of connection pool per Gunicorn worker process
+        if db_pool is None:
+            with db_pool_lock:
+                if db_pool is None:
+                    try:
+                        db_pool = ThreadedConnectionPool(2, 15, db_url, connect_timeout=5)
+                        print(f"[DB] ThreadedConnectionPool successfully initialized (PID: {os.getpid()})")
+                    except Exception as e:
+                        print(f"[DB] Error initializing ThreadedConnectionPool: {e}")
+                        
+        if db_pool:
+            try:
+                conn = db_pool.getconn()
+                return PostgresConnectionWrapper(conn, is_from_pool=True)
+            except Exception as e:
+                print(f"[DB] Pool getconn failed, falling back to direct connection: {e}")
+                
+        # Fallback to direct connection
         conn = psycopg2.connect(db_url, connect_timeout=5)
         return PostgresConnectionWrapper(conn)
     else:
@@ -460,6 +480,25 @@ def save_setting(key, value):
     """, (key, value))
     conn.commit()
     conn.close()
+
+def get_settings_dict(keys):
+    if not keys:
+        return {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    placeholders = ", ".join(["?"] * len(keys))
+    cursor.execute(f"SELECT key, value FROM settings WHERE key IN ({placeholders})", tuple(keys))
+    rows = cursor.fetchall()
+    conn.close()
+    return {r['key']: r['value'] for r in rows}
+
+def get_deleted_documents_set(company):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT doc_type, doc_no FROM deleted_documents WHERE company = ?", (company,))
+    rows = cursor.fetchall()
+    conn.close()
+    return {(str(r['doc_type']).lower(), str(r['doc_no']).lower()) for r in rows}
 
 def verify_password(stored_val, candidate_val, setting_key_to_upgrade=None):
     if not stored_val or not candidate_val:

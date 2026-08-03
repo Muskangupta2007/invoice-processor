@@ -278,14 +278,21 @@ def sync_from_google_sheet(company):
     """
     comp_key = company.lower().replace(' ', '_')
     
+    # Batch retrieve settings to save connection overheads
+    settings = db.get_settings_dict([
+        f"push_in_flight_{comp_key}",
+        f"last_push_{comp_key}",
+        f"gsheet_sync_url_{comp_key}"
+    ])
+    
     # 1. Skip pull if a push is currently in-flight
-    if db.get_setting(f"push_in_flight_{comp_key}") == "true":
+    if settings.get(f"push_in_flight_{comp_key}") == "true":
         print(f"[Google Sheets] Skipping pull sync for {company} because a push is currently in-flight.")
         return True
         
     # 2. Skip pull if the last push was very recent to allow Google Sheets to settle and avoid stale reads
     try:
-        last_push = float(db.get_setting(f"last_push_{comp_key}", "0"))
+        last_push = float(settings.get(f"last_push_{comp_key}", "0"))
     except ValueError:
         last_push = 0.0
         
@@ -293,11 +300,13 @@ def sync_from_google_sheet(company):
         print(f"[Google Sheets] Skipping pull sync for {company} because a push happened recently ({time.time() - last_push:.1f}s ago).")
         return True
 
-    sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
+    sync_url = settings.get(f"gsheet_sync_url_{comp_key}")
     if not sync_url:
         return False
         
     try:
+        # Load all deleted documents set to avoid looping select queries
+        deleted_docs = db.get_deleted_documents_set(company)
         print(f"[Google Sheets] Pulling data from Google Sheet for {company}...")
         resp = requests.get(f"{sync_url}?action=read", timeout=5)
         if resp.status_code != 200:
@@ -333,7 +342,7 @@ def sync_from_google_sheet(company):
         
         for inv_row in invoices_list:
             doc_no = str(inv_row.get('Invoice No') or '').strip()
-            if not doc_no or db.is_document_deleted(company, 'Invoice', doc_no):
+            if not doc_no or (('invoice', doc_no.lower()) in deleted_docs):
                 continue
                 
             inv_db = {}
@@ -387,7 +396,7 @@ def sync_from_google_sheet(company):
         
         for chal_row in challans_list:
             doc_no = str(chal_row.get('Delivery Challan No') or '').strip()
-            if not doc_no or db.is_document_deleted(company, 'Challan', doc_no):
+            if not doc_no or (('challan', doc_no.lower()) in deleted_docs):
                 continue
                 
             if doc_no not in grouped_challans:
