@@ -2579,10 +2579,62 @@ function writeSheetData(sheetName, dataList) {
   } catch (vErr) {
     // Ignore validation application errors if range bounds are incorrect
   }
+}
+
+// -------------------------------------------------------------
+// Real-Time Sync Triggers Configuration
+// -------------------------------------------------------------
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('InvoSync')
+      .addItem('Setup Real-Time Sync', 'setupTrigger')
+      .addToUi();
+}
+
+function setupTrigger() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'handleEdit') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('handleEdit')
+      .forSpreadsheet(ss)
+      .onEdit()
+      .create();
+  SpreadsheetApp.getUi().alert('Real-Time Sync setup successful! Edits to Invoices or Delivery Challans will now sync to the portal instantly.');
+}
+
+function handleEdit(e) {
+  var sheet = e.source.getActiveSheet();
+  var sheetName = sheet.getName();
+  if (sheetName !== "Invoices" && sheetName !== "Delivery Challans") return;
+  
+  var portalUrl = "PORTAL_WEBHOOK_URL";
+  var webAppUrl = ScriptApp.getService().getUrl();
+  
+  var payload = {
+    webAppUrl: webAppUrl
+  };
+  
+  try {
+    UrlFetchApp.fetch(portalUrl, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    // Ignore fetch errors
+  }
 }`;
 
     viewGsheetInstructionsBtn.addEventListener("click", () => {
-        gsheetScriptCode.value = GOOGLE_APPS_SCRIPT_CODE;
+        const portalWebhookUrl = window.location.origin + "/api/gsheet-webhook";
+        const scriptCode = GOOGLE_APPS_SCRIPT_CODE.replace("PORTAL_WEBHOOK_URL", portalWebhookUrl);
+        gsheetScriptCode.value = scriptCode;
         gsheetInstructionsModal.style.display = "flex";
     });
 

@@ -346,6 +346,46 @@ def test_teams():
     else:
         return jsonify({"status": "error", "message": "Failed to send test notification. Check server logs."}), 500
 
+@app.route('/api/gsheet-webhook', methods=['POST'])
+def gsheet_webhook():
+    data = request.json or {}
+    web_app_url = data.get("webAppUrl")
+    if not web_app_url:
+        return jsonify({"status": "error", "message": "Missing webAppUrl"}), 400
+        
+    # Match the web app URL to find which company it belongs to
+    company = None
+    clean_incoming = web_app_url.split('/exec')[0].strip()
+    
+    for comp in db.COMPANIES:
+        comp_key = comp.lower().replace(' ', '_')
+        configured_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
+        if configured_url:
+            clean_conf = configured_url.split('/exec')[0].strip()
+            if clean_conf == clean_incoming:
+                company = comp
+                break
+                
+    if not company:
+        # Fallback comparison if exact match is not found
+        for comp in db.COMPANIES:
+            comp_key = comp.lower().replace(' ', '_')
+            configured_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
+            if configured_url and (clean_incoming in configured_url or configured_url in clean_incoming):
+                company = comp
+                break
+
+    if not company:
+        return jsonify({"status": "error", "message": "Google Sheets Sync URL not registered in settings."}), 404
+
+    # Trigger immediate sync in a background thread to prevent blocking Google Sheets
+    import threading
+    import gsheet
+    print(f"[Webhook] Received edit alert for {company} (Sync URL: {web_app_url}). Triggering sync...")
+    threading.Thread(target=gsheet.sync_from_google_sheet, args=(company,), daemon=True).start()
+    
+    return jsonify({"status": "success", "message": f"Sync triggered for {company}."})
+
 @app.route('/api/debug-docs')
 def debug_docs():
     company = request.args.get('company', 'SK Electricals')
