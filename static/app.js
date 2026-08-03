@@ -371,14 +371,25 @@ document.addEventListener("DOMContentLoaded", () => {
                 workspaceView.style.display = "block";
                 workspaceModuleSelect.value = state.activeDocType;
                 updateWorkspaceLabels();
-                fetchData();
+                
+                // Keep UI values on screen if they match the active company and reports is loaded
+                const hasExistingData = state.invoices && state.invoices.length > 0 && state.reports;
+                const firstDoc = state.invoices && state.invoices[0];
+                const matchesActive = firstDoc && String(firstDoc.company || '').toLowerCase() === String(state.activeCompany).toLowerCase();
+                fetchData(hasExistingData && matchesActive);
             } else {
                 portalView.style.display = "block";
                 workspaceView.style.display = "none";
             }
         } else if (tabId === "invoices") {
             ledgerModuleFilter.value = state.activeDocType;
-            fetchLedger();
+            // Keep UI rows on screen if they match the active company & docType
+            const hasExistingData = state.invoices && state.invoices.length > 0;
+            const firstDoc = state.invoices && state.invoices[0];
+            const matchesActive = firstDoc && 
+                String(firstDoc.company || '').toLowerCase() === String(state.activeCompany).toLowerCase() && 
+                String(firstDoc.doc_type || '').toLowerCase() === String(state.activeDocType).toLowerCase();
+            fetchLedger(hasExistingData && matchesActive);
         } else if (tabId === "settings") {
             fetchSettings();
         }
@@ -926,17 +937,17 @@ document.addEventListener("DOMContentLoaded", () => {
                         .then(data => {
                             if (data.status === "success") {
                                 showToast(`E-Way Bill for ${docNo} updated successfully!`);
-                                fetchData();
+                                fetchData(true);
                             } else {
                                 showToast(data.message, "danger");
-                                fetchData();
+                                fetchData(true);
                             }
                         })
                         .catch(err => {
                             if (err.isToastShown) return;
                             console.error("Error saving inline E-Way Bill:", err);
                             showToast("Failed to save inline E-Way Bill.", "danger");
-                            fetchData();
+                            fetchData(true);
                         });
                     });
                 });
@@ -2156,9 +2167,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast("Document details updated successfully!");
                 closeEditDialog();
                 if (state.activeTab === "dashboard") {
-                    fetchData();
+                    fetchData(true);
                 } else if (state.activeTab === "invoices") {
-                    fetchLedger();
+                    fetchLedger(true);
                 }
             } else {
                 showToast(data.message, "danger");
