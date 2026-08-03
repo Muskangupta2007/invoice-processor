@@ -79,8 +79,12 @@ def sync_to_google_sheet(company):
     Sends the database ledger records for a company to their Google Sheet.
     """
     comp_key = company.lower().replace(' ', '_')
-    last_push_timestamps[comp_key] = time.time()
     
+    # Process-safe check to prevent concurrent overlapping pushes
+    if db.get_setting(f"push_in_flight_{comp_key}") == "true":
+        print(f"[Google Sheets] Skipping push for {company} because a push is already in-flight.")
+        return True
+
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
     if not sync_url:
         return False
@@ -96,7 +100,9 @@ def sync_to_google_sheet(company):
         print(f"[Google Sheets] Data for {company} is already in sync with Google Sheets (hash: {data_hash}). Skipping push.")
         return True
 
-    db.save_setting(f"gsheet_hash_{comp_key}", data_hash)
+    # Lock this push in-flight using database settings (shared across Gunicorn processes)
+    db.save_setting(f"push_in_flight_{comp_key}", "true")
+    db.save_setting(f"last_push_{comp_key}", str(time.time()))
     
     # 1. Format Invoices
     formatted_invoices = []
@@ -261,6 +267,8 @@ def sync_to_google_sheet(company):
             print(f"[Google Sheets] HTTP Error pushing to {company}: {resp.status_code} - {resp.text}")
     except Exception as e:
         print(f"[Google Sheets] Exception during push sync for {company}: {e}")
+    finally:
+        db.save_setting(f"push_in_flight_{comp_key}", "false")
         
     return False
 
@@ -270,9 +278,19 @@ def sync_from_google_sheet(company):
     """
     comp_key = company.lower().replace(' ', '_')
     
-    # Prevent pulling stale data if a local push is currently in-flight
-    last_push = last_push_timestamps.get(comp_key, 0)
-    if time.time() - last_push < 2.0:
+    # 1. Skip pull if a push is currently in-flight
+    if db.get_setting(f"push_in_flight_{comp_key}") == "true":
+        print(f"[Google Sheets] Skipping pull sync for {company} because a push is currently in-flight.")
+        return True
+        
+    # 2. Skip pull if the last push was very recent to allow Google Sheets to settle and avoid stale reads
+    try:
+        last_push = float(db.get_setting(f"last_push_{comp_key}", "0"))
+    except ValueError:
+        last_push = 0.0
+        
+    if time.time() - last_push < 5.0:
+        print(f"[Google Sheets] Skipping pull sync for {company} because a push happened recently ({time.time() - last_push:.1f}s ago).")
         return True
 
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
