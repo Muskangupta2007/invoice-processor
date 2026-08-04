@@ -674,28 +674,39 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("[DEBUG] fetchData called | company:", state.activeCompany, "| docType:", state.activeDocType, "| isBackground:", isBackground);
 
         if (!isBackground) {
-            // Immediately clear state so previous company/module data doesn't linger
-            state.invoices = [];
-            state.reports = null;
+            // Check if we already have matching data in state to avoid flashing loading states
+            let hasCache = false;
+            if (state.invoices && state.invoices.length > 0 && state.reports) {
+                const firstDoc = state.invoices[0];
+                if (firstDoc && String(firstDoc.company || '').toLowerCase() === String(state.activeCompany).toLowerCase() && String(firstDoc.doc_type || '').toLowerCase() === String(state.activeDocType).toLowerCase()) {
+                    hasCache = true;
+                }
+            }
 
-            // Immediately clear DOM elements so user doesn't see stale data from the previous company
-            if (typeof statTotalInvoices !== 'undefined' && statTotalInvoices) statTotalInvoices.innerText = "...";
-            if (typeof statTotalAmount !== 'undefined' && statTotalAmount) statTotalAmount.innerText = "...";
-            if (typeof statPendingMrns !== 'undefined' && statPendingMrns) statPendingMrns.innerText = "...";
-            if (typeof statSequenceGaps !== 'undefined' && statSequenceGaps) statSequenceGaps.innerText = "...";
-            if (typeof statPendingEway !== 'undefined' && statPendingEway) statPendingEway.innerText = "...";
-            if (typeof statWorkOrderPos !== 'undefined' && statWorkOrderPos) statWorkOrderPos.innerText = "...";
+            if (!hasCache) {
+                // Immediately clear state so previous company/module data doesn't linger
+                state.invoices = [];
+                state.reports = null;
 
-            // Immediately clear Action Center lists
-            const missingMrnsListEl = document.getElementById("missing-mrns-list");
-            const ewayBillsListEl = document.getElementById("eway-bills-list");
-            const sequenceGapsListEl = document.getElementById("sequence-gaps-list");
-            const workorderPosListEl = document.getElementById("workorder-pos-list");
-            
-            if (missingMrnsListEl) missingMrnsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-            if (ewayBillsListEl) ewayBillsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-            if (sequenceGapsListEl) sequenceGapsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
-            if (workorderPosListEl) workorderPosListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+                // Immediately clear DOM elements so user doesn't see stale data from the previous company
+                if (typeof statTotalInvoices !== 'undefined' && statTotalInvoices) statTotalInvoices.innerText = "...";
+                if (typeof statTotalAmount !== 'undefined' && statTotalAmount) statTotalAmount.innerText = "...";
+                if (typeof statPendingMrns !== 'undefined' && statPendingMrns) statPendingMrns.innerText = "...";
+                if (typeof statSequenceGaps !== 'undefined' && statSequenceGaps) statSequenceGaps.innerText = "...";
+                if (typeof statPendingEway !== 'undefined' && statPendingEway) statPendingEway.innerText = "...";
+                if (typeof statWorkOrderPos !== 'undefined' && statWorkOrderPos) statWorkOrderPos.innerText = "...";
+
+                // Immediately clear Action Center lists
+                const missingMrnsListEl = document.getElementById("missing-mrns-list");
+                const ewayBillsListEl = document.getElementById("eway-bills-list");
+                const sequenceGapsListEl = document.getElementById("sequence-gaps-list");
+                const workorderPosListEl = document.getElementById("workorder-pos-list");
+                
+                if (missingMrnsListEl) missingMrnsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+                if (ewayBillsListEl) ewayBillsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+                if (sequenceGapsListEl) sequenceGapsListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+                if (workorderPosListEl) workorderPosListEl.innerHTML = '<div class="alert-item alert-item-info"><span>Loading...</span></div>';
+            }
         }
 
         // Immediately sync UI section visibility & labels to match activeDocType
