@@ -2769,6 +2769,7 @@ function handleEdit(e) {
 
     // Live auto-refresh polling every 10 seconds to sync Google Sheet edits live without page reloads
     setInterval(() => {
+        if (document.hidden) return; // Skip polling when tab is inactive to save API quota and resources
         if (getAuthToken()) {
             const currentHash = window.location.hash || "#dashboard";
             if ((currentHash === "#dashboard" || currentHash === "#") && state.companySelected) {
@@ -2783,4 +2784,20 @@ function handleEdit(e) {
             }
         }
     }, 10000);
+
+    // Dynamic focus refresh: Force background pull sync immediately when tab is focused
+    window.addEventListener("focus", () => {
+        if (getAuthToken() && state.companySelected) {
+            const currentHash = window.location.hash || "#dashboard";
+            if (currentHash === "#dashboard" || currentHash === "#") {
+                fetchData(true, true); // isBackground = true, force = true!
+            } else if (currentHash === "#documents") {
+                const isEditingModal = document.getElementById("editModal")?.classList.contains("show") || false;
+                const isFocused = document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "SELECT" || document.activeElement.tagName === "TEXTAREA");
+                if (!isEditingModal && !isFocused) {
+                    fetchLedger(true, true); // isBackground = true, force = true!
+                }
+            }
+        }
+    });
 });

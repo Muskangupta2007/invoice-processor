@@ -301,14 +301,14 @@ def sync_from_google_sheet(company, force=False):
         print(f"[Google Sheets] Skipping pull sync for {company} because a push happened recently ({time.time() - last_push:.1f}s ago).")
         return True
 
-    # 3. Skip synchronous pull if a pull happened in the last 60 seconds to enable fast near-instant navigation
+    # 3. Skip synchronous pull if a pull happened in the last 30 seconds to enable fast near-instant navigation
     if not force:
         try:
             last_pull = float(settings.get(f"last_pull_{comp_key}", "0"))
         except ValueError:
             last_pull = 0.0
             
-        if time.time() - last_pull < 60.0:
+        if time.time() - last_pull < 30.0:
             print(f"[Google Sheets] Skipping pull sync for {company} because a pull happened recently ({time.time() - last_pull:.1f}s ago).")
             return True
 
