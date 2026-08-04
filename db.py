@@ -1114,9 +1114,12 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 # Atomic replacement
                 shutil.move(temp_path, main_excel_path)
                 last_written_mtime[main_excel_path] = os.path.getmtime(main_excel_path)
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "false")
             except PermissionError as e:
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "true")
                 raise PermissionError(f"The Excel file '{os.path.basename(main_excel_path)}' is currently open or locked. Please close it in Microsoft Excel and try again.") from e
             except Exception as e:
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "true")
                 print(f"Error saving main excel for {comp}: {e}")
                 if 'temp_path' in locals() and os.path.exists(temp_path):
                     try:
@@ -1231,9 +1234,12 @@ def sync_to_excel(company=None, sync_main=True, sync_pending=True):
                 
                 shutil.move(temp_path, pending_excel_path)
                 last_written_mtime[pending_excel_path] = os.path.getmtime(pending_excel_path)
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "false")
             except PermissionError as e:
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "true")
                 raise PermissionError(f"The Pending MRN Excel file '{os.path.basename(pending_excel_path)}' is currently open or locked. Please close it in Microsoft Excel and try again.") from e
             except Exception as e:
+                save_setting(f"excel_stale_{comp.lower().replace(' ', '_')}", "true")
                 print(f"Error syncing pending MRNs excel for {comp}: {e}")
                 if 'temp_path' in locals() and os.path.exists(temp_path):
                     try:
@@ -1702,6 +1708,16 @@ def start_excel_watcher():
                             # Check if modification was from the app itself
                             expected_mtime = last_written_mtime.get(main_path, 0)
                             if abs(mtime - expected_mtime) < 5.0:
+                                continue
+                                
+                            comp_key = comp.lower().replace(' ', '_')
+                            if get_setting(f"excel_stale_{comp_key}") == "true":
+                                print(f"[Watcher] Excel file '{main_path}' modification detected, but Excel is marked STALE (DB has newer data). Overwriting Excel with DB data...")
+                                try:
+                                    sync_to_excel(comp, sync_main=True, sync_pending=True)
+                                    print(f"[Watcher] Successfully synced newer DB state to Excel for {comp} (stale cleared).")
+                                except Exception as write_err:
+                                    print(f"[Watcher] Failed to overwrite stale Excel: {write_err}")
                                 continue
                                 
                             print(f"[Watcher] Manual Excel modification detected: {main_path}. Syncing...")
