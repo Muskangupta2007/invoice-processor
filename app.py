@@ -382,7 +382,7 @@ def gsheet_webhook():
     import threading
     import gsheet
     print(f"[Webhook] Received edit alert for {company} (Sync URL: {web_app_url}). Triggering sync...")
-    threading.Thread(target=gsheet.sync_from_google_sheet, args=(company,), daemon=True).start()
+    threading.Thread(target=gsheet.sync_from_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
     
     return jsonify({"status": "success", "message": f"Sync triggered for {company}."})
 
