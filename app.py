@@ -411,6 +411,7 @@ def debug_docs():
 def get_documents():
     company = request.args.get('company')
     doc_type = request.args.get('doc_type')
+    force = request.args.get('force') == 'true'
     
     # Strictly sanitize company filter so requests never leak or combine all companies
     if not company or company.strip() in ("", "undefined", "null", "None"):
@@ -423,7 +424,7 @@ def get_documents():
             import gsheet
             # Run pull synchronously to ensure Gunicorn doesn't kill the thread 
             # and to immediately return the updated data to the client.
-            gsheet.sync_from_google_sheet(company)
+            gsheet.sync_from_google_sheet(company, force=force)
         except Exception as ex:
             print(f"[API /api/invoices] Error syncing from Google Sheet for {company}: {ex}")
 

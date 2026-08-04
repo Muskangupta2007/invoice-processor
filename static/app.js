@@ -86,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const ledgerModuleFilter = document.getElementById("ledger-module-filter");
     const ledgerMrnFilter = document.getElementById("ledger-mrn-filter");
     const refreshLedgerBtn = document.getElementById("refresh-ledger-btn");
+    const refreshDashboardBtn = document.getElementById("refresh-dashboard-btn");
     const ledgerThead = document.getElementById("ledger-thead");
     const ledgerBody = document.getElementById("ledger-body");
 
@@ -665,7 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- FETCH DATA (DASHBOARD) ---
     
-    function fetchData(isBackground = false) {
+    function fetchData(isBackground = false, force = false) {
         if (!getAuthToken()) {
             showLoginScreen();
             return;
@@ -733,7 +734,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const currentReqCompany = state.activeCompany;
         const currentReqDocType = state.activeDocType;
 
-        fetch(`/api/invoices?company=${encodeURIComponent(currentReqCompany)}&doc_type=${encodeURIComponent(currentReqDocType)}`, {
+        fetch(`/api/invoices?company=${encodeURIComponent(currentReqCompany)}&doc_type=${encodeURIComponent(currentReqDocType)}&force=${force}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
@@ -1143,7 +1144,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- FETCH LEDGER TABLE ---
     
-    function fetchLedger(isBackground = false) {
+    function fetchLedger(isBackground = false, force = false) {
         if (!getAuthToken()) {
             showLoginScreen();
             return;
@@ -1231,7 +1232,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        fetch(`/api/invoices?company=${encodeURIComponent(comp)}&doc_type=${encodeURIComponent(docType)}`, {
+        fetch(`/api/invoices?company=${encodeURIComponent(comp)}&doc_type=${encodeURIComponent(docType)}&force=${force}`, {
             headers: getAuthHeaders(false)
         })
         .then(checkAuthResponse)
@@ -1529,7 +1530,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ledgerSearch.addEventListener("keyup", () => renderLedgerTable(state.invoices, ledgerModuleFilter.value));
     ledgerMrnFilter.addEventListener("change", () => renderLedgerTable(state.invoices, ledgerModuleFilter.value));
-    refreshLedgerBtn.addEventListener("click", () => fetchLedger());
+    refreshLedgerBtn.addEventListener("click", () => fetchLedger(false, true));
+    refreshDashboardBtn.addEventListener("click", () => {
+        // Clear caches so the spinner shows during explicit manual refreshes
+        state.invoices = [];
+        state.reports = null;
+        fetchData(false, true);
+    });
 
     // --- UPLOAD & INGESTION LOGIC ---
     
