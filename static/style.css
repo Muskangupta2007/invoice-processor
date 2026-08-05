@@ -865,9 +865,7 @@ body.light-mode .theme-btn:hover {
 #tab-invoices.active {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    height: 0;
-    min-height: 0;
+    height: calc(100vh - 160px);
     gap: 20px;
 }
 
