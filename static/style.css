@@ -858,7 +858,17 @@ body.light-mode .theme-btn:hover {
 .table-container {
     padding: 0;
     overflow: hidden;
-    height: calc(100vh - 280px); /* Fill screen height minus offsets */
+    flex-grow: 1;
+    min-height: 0;
+}
+
+#tab-invoices.active {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    height: 0;
+    min-height: 0;
+    gap: 20px;
 }
 
 .table-scroll {
