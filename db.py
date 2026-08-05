@@ -442,6 +442,20 @@ def init_db():
         print(f"[DB Init] settings warning: {set_err}")
         try: conn.rollback()
         except Exception: pass
+        
+    try:
+        # Enable Row-Level Security on Supabase tables to secure them from public REST/API access
+        db_url = os.environ.get('DATABASE_URL')
+        if db_url and "postgresql" in db_url.lower():
+            cursor.execute("ALTER TABLE documents ENABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE deleted_documents ENABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE settings ENABLE ROW LEVEL SECURITY;")
+            conn.commit()
+            print("[DB Init] Successfully enabled Row-Level Security (RLS) on all database tables.")
+    except Exception as rls_err:
+        print(f"[DB Init] Note: Could not enable RLS: {rls_err}")
+        try: conn.rollback()
+        except Exception: pass
     
     try:
         conn.close()
