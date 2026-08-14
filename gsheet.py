@@ -572,9 +572,8 @@ def sync_from_google_sheet(company, force=False):
         sheet_invoices_count = len(parsed_invoices)
         
         if force or db_invoices_count > sheet_invoices_count:
-            print(f"[Google Sheets] Database has {db_invoices_count} invoices vs {sheet_invoices_count} in Google Sheets for {company}. Triggering immediate force push sync...")
-            import threading
-            threading.Thread(target=sync_to_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
+            print(f"[Google Sheets] Database has {db_invoices_count} invoices vs {sheet_invoices_count} in Google Sheets for {company}. Running immediate synchronous force push sync...")
+            sync_to_google_sheet(company, force=True)
 
         return True
     except Exception as e:

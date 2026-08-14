@@ -2663,6 +2663,41 @@ function handleEdit(e) {
         gsheetInstructionsModal.style.display = "flex";
     });
 
+    const forceSyncGsheetsBtn = document.getElementById("force-sync-gsheets-btn");
+    if (forceSyncGsheetsBtn) {
+        forceSyncGsheetsBtn.addEventListener("click", () => {
+            if (!getAuthToken()) {
+                showLoginScreen();
+                return;
+            }
+            forceSyncGsheetsBtn.disabled = true;
+            forceSyncGsheetsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Force Syncing All Records...`;
+            showToast(`Triggering force push sync of all database records to Google Sheets...`, "info");
+
+            fetch('/api/invoices/force-push-gsheet', {
+                method: 'POST',
+                headers: getAuthHeaders(true),
+                body: JSON.stringify({ company: state.activeCompany })
+            })
+            .then(res => res.json())
+            .then(data => {
+                forceSyncGsheetsBtn.disabled = false;
+                forceSyncGsheetsBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Force Sync All to Google Sheets Now`;
+                if (data.status === "success") {
+                    showToast("Force push sync to Google Sheets completed successfully!", "success");
+                    fetchLedger(false, true);
+                } else {
+                    showToast(data.message || "Failed to force push sync to Google Sheets.", "danger");
+                }
+            })
+            .catch(err => {
+                forceSyncGsheetsBtn.disabled = false;
+                forceSyncGsheetsBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Force Sync All to Google Sheets Now`;
+                showToast(`Force sync error: ${err.message}`, "danger");
+            });
+        });
+    }
+
     const closeGsheetInstructions = () => {
         gsheetInstructionsModal.style.display = "none";
     };
