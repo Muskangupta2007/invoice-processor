@@ -259,7 +259,7 @@ def sync_to_google_sheet(company, force=False):
     
     try:
         print(f"[Google Sheets] Pushing update to Google Sheet for {company}...")
-        resp = requests.post(sync_url, json=payload, timeout=15)
+        resp = requests.post(sync_url, json=payload, timeout=60)
         if resp.status_code == 200:
             try:
                 res_data = resp.json()
@@ -331,7 +331,7 @@ def sync_from_google_sheet(company, force=False):
         # Load all deleted documents set to avoid looping select queries
         deleted_docs = db.get_deleted_documents_set(company)
         print(f"[Google Sheets] Pulling data from Google Sheet for {company}...")
-        resp = requests.get(f"{sync_url}?action=read", timeout=5)
+        resp = requests.get(f"{sync_url}?action=read", timeout=30)
         if resp.status_code != 200:
             print(f"[Google Sheets] HTTP Error pulling from {company}: {resp.status_code}")
             return False
