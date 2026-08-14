@@ -101,8 +101,8 @@ def sync_to_google_sheet(company, force=False):
         return False
         
     all_docs = db.get_documents(company=company)
-    invoices = [d for d in all_docs if d['doc_type'] == 'Invoice']
-    challans = [d for d in all_docs if d['doc_type'] == 'Challan']
+    invoices = [d for d in all_docs if str(d.get('doc_type', '')).strip().lower() == 'invoice']
+    challans = [d for d in all_docs if str(d.get('doc_type', '')).strip().lower() == 'challan']
     
     # Save hash immediately to prevent race conditions during background POST
     data_hash = compute_data_hash(invoices, challans)

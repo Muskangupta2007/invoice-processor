@@ -553,10 +553,10 @@ def get_documents(company=None, doc_type=None):
         
         conditions = []
         if company:
-            conditions.append("LOWER(company) = LOWER(?)")
+            conditions.append("LOWER(TRIM(company)) = LOWER(TRIM(?))")
             params.append(company)
         if doc_type:
-            conditions.append("LOWER(doc_type) = LOWER(?)")
+            conditions.append("LOWER(TRIM(doc_type)) = LOWER(TRIM(?))")
             params.append(doc_type)
             
         if conditions:
