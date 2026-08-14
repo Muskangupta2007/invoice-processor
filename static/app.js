@@ -2558,6 +2558,13 @@ function writeSheetData(sheetName, dataList) {
     // Fallback if sheet is empty or has no range
   }
   
+  // Ensure the sheet has enough rows for all data rows + header row
+  var requiredRows = dataList.length + 10;
+  var currentMaxRows = sheet.getMaxRows();
+  if (currentMaxRows < requiredRows) {
+    sheet.insertRowsAfter(currentMaxRows, requiredRows - currentMaxRows);
+  }
+  
   // Set headers directly on row 1 to prevent Google Sheets Tables from resetting
   // column headers to default values (like "Column 1", "Column 2") which happens when using appendRow.
   sheet.getRange(1, 1, 1, cols.length).setValues([cols]);

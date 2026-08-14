@@ -4,7 +4,12 @@ import os
 port = os.environ.get("PORT", "5000")
 bind = f"0.0.0.0:{port}"
 
-# Maintain configuration alignment with Procfile/render.yaml
-workers = 2
-threads = 4
+# Dynamic workers/threads based on the environment to control RAM usage
+if os.environ.get("RENDER") == "true":
+    workers = 1
+    threads = 4
+else:
+    workers = 2
+    threads = 4
+    
 timeout = 120

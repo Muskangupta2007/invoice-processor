@@ -74,16 +74,27 @@ def compute_data_hash(invoices, challans):
     data_str = json.dumps(data_dict, sort_keys=True)
     return hashlib.md5(data_str.encode('utf-8')).hexdigest()
 
-def sync_to_google_sheet(company):
+def sync_to_google_sheet(company, force=False):
     """
     Sends the database ledger records for a company to their Google Sheet.
     """
-    comp_key = company.lower().replace(' ', '_')
+    comp_key = company.lower().strip().replace(' ', '_')
     
-    # Process-safe check to prevent concurrent overlapping pushes
-    if db.get_setting(f"push_in_flight_{comp_key}") == "true":
-        print(f"[Google Sheets] Skipping push for {company} because a push is already in-flight.")
-        return True
+    # Process-safe check to prevent concurrent overlapping pushes with 30-second stale lock expiration
+    last_push_str = db.get_setting(f"last_push_{comp_key}", "0")
+    try:
+        last_push_time = float(last_push_str)
+    except (ValueError, TypeError):
+        last_push_time = 0.0
+
+    in_flight = db.get_setting(f"push_in_flight_{comp_key}") == "true"
+    if in_flight:
+        if not force and (time.time() - last_push_time < 30.0):
+            print(f"[Google Sheets] Skipping push for {company} because a push is already in-flight ({time.time() - last_push_time:.1f}s ago).")
+            return True
+        else:
+            print(f"[Google Sheets] Clearing stale/forced push lock for {company} (was set {time.time() - last_push_time:.1f}s ago).")
+            db.save_setting(f"push_in_flight_{comp_key}", "false")
 
     sync_url = db.get_setting(f"gsheet_sync_url_{comp_key}")
     if not sync_url:
@@ -96,7 +107,7 @@ def sync_to_google_sheet(company):
     # Save hash immediately to prevent race conditions during background POST
     data_hash = compute_data_hash(invoices, challans)
     last_hash = db.get_setting(f"gsheet_hash_{comp_key}", "")
-    if data_hash == last_hash:
+    if not force and data_hash == last_hash:
         print(f"[Google Sheets] Data for {company} is already in sync with Google Sheets (hash: {data_hash}). Skipping push.")
         return True
 
@@ -554,6 +565,17 @@ def sync_from_google_sheet(company, force=False):
                     
         db.save_setting(f"last_pull_{comp_key}", str(time.time()))
         print(f"[Google Sheets] Google Sheets sync to database completed for {company}.")
+
+        # Check if DB has more records than pulled from Google Sheets, or if force is true
+        all_db_docs = db.get_documents(company=company)
+        db_invoices_count = len([d for d in all_db_docs if d['doc_type'] == 'Invoice'])
+        sheet_invoices_count = len(parsed_invoices)
+        
+        if force or db_invoices_count > sheet_invoices_count:
+            print(f"[Google Sheets] Database has {db_invoices_count} invoices vs {sheet_invoices_count} in Google Sheets for {company}. Triggering immediate force push sync...")
+            import threading
+            threading.Thread(target=sync_to_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
+
         return True
     except Exception as e:
         print(f"[Google Sheets] Error in sync_from_google_sheet for {company}: {e}")

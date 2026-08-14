@@ -18,3 +18,10 @@ uploads/
 .jetro/
 .vs/
 .vscode/
+
+# Local IDE, Agent and workspace configs
+.cursor/
+.agents/
+.windsurfrules
+.mcp.json
+check_db.py

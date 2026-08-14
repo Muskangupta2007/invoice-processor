@@ -346,6 +346,25 @@ def test_teams():
     else:
         return jsonify({"status": "error", "message": "Failed to send test notification. Check server logs."}), 500
 
+@app.route('/api/invoices/force-push-gsheet', methods=['POST'])
+@requires_auth
+def force_push_gsheet():
+    data = request.json or {}
+    company = data.get('company')
+    companies_to_sync = [company] if company and company in db.COMPANIES else db.COMPANIES
+    
+    results = {}
+    import gsheet
+    for comp in companies_to_sync:
+        success = gsheet.sync_to_google_sheet(comp, force=True)
+        results[comp] = success
+        
+    return jsonify({
+        "status": "success",
+        "message": "Force push sync to Google Sheets completed for all records.",
+        "results": results
+    })
+
 @app.route('/api/gsheet-webhook', methods=['POST'])
 def gsheet_webhook():
     data = request.json or {}
@@ -522,38 +541,45 @@ def upload_file():
     file.save(file_path)
     
     try:
-        extracted_data = extractor.extract_invoice_data(file_path, endpoint, api_key, doc_type)
-        doc_no = extracted_data.get("doc_no")
-        
-        extracted_data["company"] = company
-        extracted_data["doc_type"] = doc_type
-        
-        if not doc_no:
-            return jsonify({
-                "status": "error",
-                "message": "Could not identify a document number from the document.",
-                "extracted_data": extracted_data
-            }), 422
+        try:
+            extracted_data = extractor.extract_invoice_data(file_path, endpoint, api_key, doc_type)
+            doc_no = extracted_data.get("doc_no")
             
-        existing_doc = db.get_document_by_no(company, doc_type, doc_no)
-        if existing_doc:
+            extracted_data["company"] = company
+            extracted_data["doc_type"] = doc_type
+            
+            if not doc_no:
+                return jsonify({
+                    "status": "error",
+                    "message": "Could not identify a document number from the document.",
+                    "extracted_data": extracted_data
+                }), 422
+                
+            existing_doc = db.get_document_by_no(company, doc_type, doc_no)
+            if existing_doc:
+                return jsonify({
+                    "status": "duplicate",
+                    "message": f"{doc_type} number '{doc_no}' already exists for company '{company}'.",
+                    "new_data": extracted_data,
+                    "existing_data": existing_doc,
+                    "data": extracted_data
+                })
+                
+            # Do NOT save to database on initial OCR extraction - return data for user review
             return jsonify({
-                "status": "duplicate",
-                "message": f"{doc_type} number '{doc_no}' already exists for company '{company}'.",
-                "new_data": extracted_data,
-                "existing_data": existing_doc,
+                "status": "success",
+                "message": "Document extracted successfully for review.",
                 "data": extracted_data
             })
             
-        # Do NOT save to database on initial OCR extraction - return data for user review
-        return jsonify({
-            "status": "success",
-            "message": "Document extracted successfully for review.",
-            "data": extracted_data
-        })
-        
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as ex:
+                print(f"Error removing temporary uploaded file: {ex}")
 
 @app.route('/api/invoices/confirm-upload', methods=['POST'])
 @requires_auth

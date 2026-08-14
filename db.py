@@ -476,43 +476,51 @@ def get_setting(key, default=None):
         return env_val
         
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return row['value']
-    return default
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row:
+            return row['value']
+        return default
+    finally:
+        conn.close()
 
 def save_setting(key, value):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO settings (key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    """, (key, value))
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (key, value))
+        conn.commit()
+    finally:
+        conn.close()
 
 def get_settings_dict(keys):
     if not keys:
         return {}
     conn = get_db_connection()
-    cursor = conn.cursor()
-    placeholders = ", ".join(["?"] * len(keys))
-    cursor.execute(f"SELECT key, value FROM settings WHERE key IN ({placeholders})", tuple(keys))
-    rows = cursor.fetchall()
-    conn.close()
-    return {r['key']: r['value'] for r in rows}
+    try:
+        cursor = conn.cursor()
+        placeholders = ", ".join(["?"] * len(keys))
+        cursor.execute(f"SELECT key, value FROM settings WHERE key IN ({placeholders})", tuple(keys))
+        rows = cursor.fetchall()
+        return {r['key']: r['value'] for r in rows}
+    finally:
+        conn.close()
 
 def get_deleted_documents_set(company):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT doc_type, doc_no FROM deleted_documents WHERE company = ?", (company,))
-    rows = cursor.fetchall()
-    conn.close()
-    return {(str(r['doc_type']).lower(), str(r['doc_no']).lower()) for r in rows}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT doc_type, doc_no FROM deleted_documents WHERE company = ?", (company,))
+        rows = cursor.fetchall()
+        return {(str(r['doc_type']).lower(), str(r['doc_no']).lower()) for r in rows}
+    finally:
+        conn.close()
 
 def verify_password(stored_val, candidate_val, setting_key_to_upgrade=None):
     if not stored_val or not candidate_val:
@@ -537,41 +545,45 @@ def verify_password(stored_val, candidate_val, setting_key_to_upgrade=None):
 
 def get_documents(company=None, doc_type=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    query = "SELECT * FROM documents"
-    params = []
-    
-    conditions = []
-    if company:
-        conditions.append("LOWER(company) = LOWER(?)")
-        params.append(company)
-    if doc_type:
-        conditions.append("LOWER(doc_type) = LOWER(?)")
-        params.append(doc_type)
+    try:
+        cursor = conn.cursor()
         
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
+        query = "SELECT * FROM documents"
+        params = []
         
-    query += " ORDER BY id DESC"
-    
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+        conditions = []
+        if company:
+            conditions.append("LOWER(company) = LOWER(?)")
+            params.append(company)
+        if doc_type:
+            conditions.append("LOWER(doc_type) = LOWER(?)")
+            params.append(doc_type)
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        query += " ORDER BY id DESC"
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 def get_document_by_no(company, doc_type, doc_no):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM documents WHERE company = ? AND doc_type = ? AND doc_no = ?",
-        (company, doc_type, doc_no)
-    )
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return dict(row)
-    return None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM documents WHERE company = ? AND doc_type = ? AND doc_no = ?",
+            (company, doc_type, doc_no)
+        )
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    finally:
+        conn.close()
 
 def add_document(data):
     company = data.get('company')
@@ -671,7 +683,7 @@ def add_document(data):
         try:
             import gsheet
             threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
-            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
         except Exception as e:
             print(f"Error triggering background sync tasks in add_document: {e}")
     return success
@@ -711,41 +723,42 @@ def update_document(company, doc_type, doc_no, data):
     check_excel_writable(company)
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    fields = []
-    values = []
-    
-    updatable_fields = [
-        'doc_date', 'invoice_no', 'challan_no', 'bill_to', 'po_wo_no',
-        'item_description', 'amount', 'eway_bill', 'eway_bill_no', 'asn_no', 'mode_of_transp',
-        'dock_code', 'delivery_date', 'delivery_site', 'mrn_status',
-        'mrn_date', 'mrn_no', 'remarks',
-        'deliver_qty', 'uom', 'unit_price', 'po_status', 'po_qty'
-    ]
-    
-    for f in updatable_fields:
-        if f in data:
-            fields.append(f"{f} = ?")
-            values.append(data[f])
-            
-    if not fields:
-        conn.close()
-        return False
+    try:
+        cursor = conn.cursor()
         
-    values.extend([company, doc_type, doc_no])
-    query = f"UPDATE documents SET {', '.join(fields)} WHERE company = ? AND doc_type = ? AND doc_no = ?"
-    
-    cursor.execute(query, tuple(values))
-    conn.commit()
-    rows_affected = cursor.rowcount
-    conn.close()
+        fields = []
+        values = []
+        
+        updatable_fields = [
+            'doc_date', 'invoice_no', 'challan_no', 'bill_to', 'po_wo_no',
+            'item_description', 'amount', 'eway_bill', 'eway_bill_no', 'asn_no', 'mode_of_transp',
+            'dock_code', 'delivery_date', 'delivery_site', 'mrn_status',
+            'mrn_date', 'mrn_no', 'remarks',
+            'deliver_qty', 'uom', 'unit_price', 'po_status', 'po_qty'
+        ]
+        
+        for f in updatable_fields:
+            if f in data:
+                fields.append(f"{f} = ?")
+                values.append(data[f])
+                
+        if not fields:
+            return False
+            
+        values.extend([company, doc_type, doc_no])
+        query = f"UPDATE documents SET {', '.join(fields)} WHERE company = ? AND doc_type = ? AND doc_no = ?"
+        
+        cursor.execute(query, tuple(values))
+        conn.commit()
+        rows_affected = cursor.rowcount
+    finally:
+        conn.close()
     
     if rows_affected > 0:
         try:
             import gsheet
             threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
-            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
         except Exception as e:
             print(f"Error triggering background sync tasks in update_document: {e}")
         return True
@@ -755,26 +768,30 @@ def is_document_deleted(company, doc_type, doc_no):
     if not company or not doc_type or not doc_no:
         return False
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT 1 FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
-        (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
-    )
-    row = cursor.fetchone()
-    conn.close()
-    return row is not None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
+            (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
+        )
+        row = cursor.fetchone()
+        return row is not None
+    finally:
+        conn.close()
 
 def unmark_deleted_document(company, doc_type, doc_no):
     if not company or not doc_type or not doc_no:
         return
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
-        (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM deleted_documents WHERE LOWER(company) = LOWER(?) AND LOWER(doc_type) = LOWER(?) AND LOWER(doc_no) = LOWER(?)",
+            (str(company).strip(), str(doc_type).strip(), str(doc_no).strip())
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 def delete_document(company, doc_type, doc_no):
     check_excel_writable(company)
@@ -817,7 +834,7 @@ def delete_document(company, doc_type, doc_no):
         try:
             import gsheet
             threading.Thread(target=sync_to_excel, args=(company,), daemon=True).start()
-            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), daemon=True).start()
+            threading.Thread(target=gsheet.sync_to_google_sheet, args=(company,), kwargs={"force": True}, daemon=True).start()
         except Exception as e:
             print(f"Error triggering background sync tasks in delete_document: {e}")
         return True
@@ -1674,6 +1691,10 @@ sync_lock = threading.Lock()
 last_known_mtime = {}
 
 def start_excel_watcher():
+    if os.environ.get('RENDER') == 'true':
+        print("[Watcher] Running on Render. Disabling background Excel file watcher and periodic Google Sheets polling.")
+        return
+        
     def watcher_thread():
         # Sleep 10s on startup to allow Gunicorn to bind to PORT and pass Render health checks instantly
         time.sleep(10.0)
