@@ -2426,8 +2426,13 @@ function doPost(e) {
       writeSheetData("Invoices", invoices);
       writeSheetData("Delivery Challans", challans);
       writeSheetData("Pending MRNs", pending);
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Sheets updated successfully" }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: "success", 
+        message: "Sheets updated successfully",
+        invoices_written: invoices.length,
+        challans_written: challans.length,
+        pending_written: pending.length
+      })).setMimeType(ContentService.MimeType.JSON);
     }
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
@@ -2548,25 +2553,35 @@ function writeSheetData(sheetName, dataList) {
     ];
   }
   if (!sheet) sheet = ss.insertSheet(sheetName);
-  sheet.clear();
+
+  // 1. Remove active Google Sheets filter if present so rows 71+ are never hidden
+  try {
+    if (sheet.getFilter()) {
+      sheet.getFilter().remove();
+    }
+  } catch (fErr) {}
+
+  // 2. Unhide all hidden or collapsed rows across the sheet grid
+  try {
+    sheet.showRows(1, sheet.getMaxRows());
+  } catch (rErr) {}
+
+  sheet.clearContents();
+  sheet.clearFormats();
   
-  // Clear any existing data validation rules on the entire sheet to prevent old or misplaced validations
-  // (like a validation rule stuck on a column that was moved or rearranged) from causing sync errors.
+  // 3. Clear any misplaced data validation rules
   try {
     sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearDataValidations();
-  } catch (e) {
-    // Fallback if sheet is empty or has no range
-  }
+  } catch (e) {}
   
-  // Ensure the sheet has enough rows for all data rows + header row
-  var requiredRows = dataList.length + 10;
+  // 4. Ensure the sheet has enough rows for all data rows + extra headroom
+  var requiredRows = dataList.length + 50;
   var currentMaxRows = sheet.getMaxRows();
   if (currentMaxRows < requiredRows) {
     sheet.insertRowsAfter(currentMaxRows, requiredRows - currentMaxRows);
   }
   
-  // Set headers directly on row 1 to prevent Google Sheets Tables from resetting
-  // column headers to default values (like "Column 1", "Column 2") which happens when using appendRow.
+  // Set headers directly on row 1
   sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
   
   if (dataList.length === 0) return;
@@ -2583,27 +2598,23 @@ function writeSheetData(sheetName, dataList) {
   sheet.getRange(2, 1, rowsToWrite.length, cols.length).setWrap(true).setVerticalAlignment("top");
   sheet.getRange(1, 1, 1, cols.length).setFontWeight("bold").setBackground("#f3f3f3");
   
-  // Re-apply correct validation rules programmatically to the correct columns
+  // Re-apply correct validation rules programmatically
   try {
     var numRows = rowsToWrite.length;
     if (sheetName === "Delivery Challans") {
-      // PO Status on Column 9 (Col I)
-      var poRule = SpreadsheetApp.newDataValidation().requireValueInList(['Open', 'Closed'], true).build();
+      var poRule = SpreadsheetApp.newDataValidation().requireValueInList(['Open', 'Close', 'Work Order'], true).build();
       sheet.getRange(2, 9, numRows, 1).setDataValidation(poRule);
-      // MRN Status on Column 14 (Col N)
       var mrnRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE'], true).build();
       sheet.getRange(2, 14, numRows, 1).setDataValidation(mrnRule);
     } else if (sheetName === "Invoices" || sheetName === "Pending MRNs") {
-      // Eway Bill on Column 9 (Col I)
       var ewayRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE', 'N/A'], true).build();
       sheet.getRange(2, 9, numRows, 1).setDataValidation(ewayRule);
-      // MRN Status on Column 16 (Col P)
       var mrnRule = SpreadsheetApp.newDataValidation().requireValueInList(['PENDING', 'DONE'], true).build();
       sheet.getRange(2, 16, numRows, 1).setDataValidation(mrnRule);
     }
-  } catch (vErr) {
-    // Ignore validation application errors if range bounds are incorrect
-  }
+  } catch (vErr) {}
+
+  SpreadsheetApp.flush();
 }
 
 // -------------------------------------------------------------

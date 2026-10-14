@@ -9,6 +9,19 @@ from datetime import datetime
 
 last_push_timestamps = {}
 
+def find_dict_val(d, *target_keys):
+    if not isinstance(d, dict):
+        return None
+    for tk in target_keys:
+        if tk in d and d[tk] is not None and d[tk] != "":
+            return d[tk]
+    norm_targets = [str(tk).lower().replace('.', '').replace('_', '').replace(' ', '').replace('#', '').replace('/', '') for tk in target_keys]
+    for k, v in d.items():
+        k_norm = str(k).lower().replace('.', '').replace('_', '').replace(' ', '').replace('#', '').replace('/', '')
+        if k_norm in norm_targets and v is not None and v != "":
+            return v
+    return None
+
 def compute_data_hash(invoices, challans):
     """
     Computes a deterministic MD5 hash of the invoice and challan records.
@@ -249,7 +262,7 @@ def sync_to_google_sheet(company, force=False):
             })
             pending_idx += 1
             
-    # POST payload to Apps Script Web App
+    # POST payload to Apps Script Web App with automatic retries and count verification
     payload = {
         "action": "write",
         "invoices": formatted_invoices,
@@ -257,30 +270,62 @@ def sync_to_google_sheet(company, force=False):
         "pending": formatted_pending
     }
     
-    try:
-        print(f"[Google Sheets] Pushing update to Google Sheet for {company}...")
-        resp = requests.post(sync_url, json=payload, timeout=60)
-        if resp.status_code == 200:
-            try:
-                res_data = resp.json()
-            except Exception as json_err:
-                print(f"[Google Sheets] JSON Decode Error. Response text was:\n{resp.text[:2000]}")
-                raise json_err
-            if res_data.get("status") == "success":
-                # Compute and save the hash to prevent self-sync loop
-                data_hash = compute_data_hash(invoices, challans)
-                db.save_setting(f"gsheet_hash_{comp_key}", data_hash)
-                print(f"[Google Sheets] Push sync successful for {company}. Hash saved: {data_hash}")
-                return True
+    max_retries = 3
+    backoff_delays = [1.0, 3.0, 5.0]
+    last_error_msg = ""
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"[Google Sheets] Pushing update to Google Sheet for {company} (Attempt {attempt + 1}/{max_retries})...")
+            resp = requests.post(sync_url, json=payload, timeout=60)
+            
+            if resp.status_code == 200:
+                try:
+                    res_data = resp.json()
+                except Exception as json_err:
+                    last_error_msg = f"JSON Decode Error (HTTP 200). Response snippet: {resp.text[:500]}"
+                    print(f"[Google Sheets] {last_error_msg}")
+                    raise json_err
+                    
+                if res_data.get("status") == "success":
+                    # Verification: Check if written counts match payload length
+                    invoices_written = res_data.get("invoices_written")
+                    if invoices_written is not None and isinstance(invoices_written, int):
+                        if invoices_written < len(formatted_invoices):
+                            last_error_msg = f"Incomplete write detected: Apps Script wrote {invoices_written}/{len(formatted_invoices)} invoices."
+                            print(f"[Google Sheets] WARNING: {last_error_msg}")
+                            raise Exception(last_error_msg)
+                            
+                    # Compute and save the hash to prevent self-sync loop
+                    data_hash = compute_data_hash(invoices, challans)
+                    db.save_setting(f"gsheet_hash_{comp_key}", data_hash)
+                    db.save_setting(f"gsheet_status_{comp_key}", "SYNCED")
+                    db.save_setting(f"gsheet_last_success_{comp_key}", str(time.time()))
+                    db.save_setting(f"gsheet_last_error_{comp_key}", "")
+                    db.save_setting(f"gsheet_doc_count_{comp_key}", str(len(formatted_invoices)))
+                    print(f"[Google Sheets] Push sync verified & successful for {company}. Records: {len(formatted_invoices)}, Hash: {data_hash}")
+                    db.save_setting(f"push_in_flight_{comp_key}", "false")
+                    return True
+                else:
+                    last_error_msg = f"Error from Apps Script: {res_data.get('message')}"
+                    print(f"[Google Sheets] {last_error_msg}")
             else:
-                print(f"[Google Sheets] Error from Web App for {company}: {res_data.get('message')}")
-        else:
-            print(f"[Google Sheets] HTTP Error pushing to {company}: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        print(f"[Google Sheets] Exception during push sync for {company}: {e}")
-    finally:
-        db.save_setting(f"push_in_flight_{comp_key}", "false")
-        
+                last_error_msg = f"HTTP {resp.status_code}: {resp.text[:300]}"
+                print(f"[Google Sheets] {last_error_msg}")
+                
+        except Exception as e:
+            last_error_msg = str(e)
+            print(f"[Google Sheets] Attempt {attempt + 1} failed for {company}: {e}")
+            
+        if attempt < max_retries - 1:
+            time.sleep(backoff_delays[attempt])
+            
+    # Mark sync as FAILED if all retries exhausted
+    db.save_setting(f"gsheet_status_{comp_key}", "FAILED")
+    db.save_setting(f"gsheet_last_error_{comp_key}", last_error_msg)
+    db.save_setting(f"gsheet_hash_{comp_key}", "")  # Clear hash to force retry on next cycle
+    db.save_setting(f"push_in_flight_{comp_key}", "false")
+    print(f"[Google Sheets] CRITICAL: Push sync failed after {max_retries} attempts for {company}. Error: {last_error_msg}")
     return False
 
 def sync_from_google_sheet(company, force=False):
@@ -364,19 +409,20 @@ def sync_from_google_sheet(company, force=False):
         }
         
         for inv_row in invoices_list:
-            doc_no = str(inv_row.get('Invoice No') or '').strip()
+            doc_no = str(find_dict_val(inv_row, 'Invoice No', 'Invoice Number', 'Invoice No.', 'Inv No', 'Invoice #') or '').strip()
             if not doc_no or (('invoice', doc_no.lower()) in deleted_docs):
                 continue
                 
             inv_db = {}
             for col_name, db_name in excel_to_db_inv.items():
-                val = inv_row.get(col_name)
+                val = find_dict_val(inv_row, col_name)
                 if db_name in ['doc_date', 'delivery_date', 'mrn_date']:
                     val = db.clean_date_string(val)
-                inv_db[db_name] = None if val == "" else val
+                inv_db[db_name] = None if val == "" or val is None else val
                 
             inv_db['company'] = company
             inv_db['doc_type'] = 'Invoice'
+            inv_db['doc_no'] = doc_no
             inv_db['challan_no'] = db.clean_challan_no(inv_db.get('challan_no'), doc_no)
             
             # Clean fields
@@ -418,23 +464,23 @@ def sync_from_google_sheet(company, force=False):
         grouped_challans = {}
         
         for chal_row in challans_list:
-            doc_no = str(chal_row.get('Delivery Challan No') or '').strip()
+            doc_no = str(find_dict_val(chal_row, 'Delivery Challan No', 'Challan No', 'Challan Number', 'DC No', 'DC Number') or '').strip()
             if not doc_no or (('challan', doc_no.lower()) in deleted_docs):
                 continue
                 
             if doc_no not in grouped_challans:
                 grouped_challans[doc_no] = {
                     'doc_no': doc_no,
-                    'doc_date': db.clean_date_string(chal_row.get('Delivery Date')),
-                    'invoice_no': chal_row.get('Invoice Number'),
+                    'doc_date': db.clean_date_string(find_dict_val(chal_row, 'Delivery Date', 'Challan Date', 'Date')),
+                    'invoice_no': find_dict_val(chal_row, 'Invoice Number', 'Invoice No', 'Invoice No.'),
                     'challan_no': doc_no,
-                    'bill_to': chal_row.get('Bill To') or 'LARSEN & TOUBRO',
-                    'po_wo_no': chal_row.get('PO Number'),
-                    'delivery_site': chal_row.get('Delivery Location'),
-                    'mrn_status': chal_row.get('MRN Status') or 'PENDING',
-                    'mrn_date': db.clean_date_string(chal_row.get('MRN Date')),
-                    'mrn_no': chal_row.get('MRN No'),
-                    'remarks': chal_row.get('Remarks'),
+                    'bill_to': find_dict_val(chal_row, 'Bill To', 'Customer') or 'LARSEN & TOUBRO',
+                    'po_wo_no': find_dict_val(chal_row, 'PO Number', 'PO/WO No', 'PO No'),
+                    'delivery_site': find_dict_val(chal_row, 'Delivery Location', 'Delivery Site'),
+                    'mrn_status': find_dict_val(chal_row, 'MRN Status') or 'PENDING',
+                    'mrn_date': db.clean_date_string(find_dict_val(chal_row, 'MRN Date')),
+                    'mrn_no': find_dict_val(chal_row, 'MRN No', 'MRN Number'),
+                    'remarks': find_dict_val(chal_row, 'Remarks'),
                     
                     '_items': [],
                     '_qtys': [],
@@ -445,12 +491,12 @@ def sync_from_google_sheet(company, force=False):
                 }
                 
             gd = grouped_challans[doc_no]
-            gd['_items'].append(str(chal_row.get('Item Description') or '').strip())
-            gd['_qtys'].append(str(chal_row.get('Deliver Qty') or '').strip())
-            gd['_uoms'].append(str(chal_row.get('UOM') or '').strip())
-            gd['_prices'].append(str(chal_row.get('Unit Price') or '').strip())
-            gd['_po_qtys'].append(str(chal_row.get('PO Qty') or '').strip())
-            gd['_po_statuses'].append(str(chal_row.get('PO Status') or '').strip())
+            gd['_items'].append(str(find_dict_val(chal_row, 'Item Description', 'Description', 'Item') or '').strip())
+            gd['_qtys'].append(str(find_dict_val(chal_row, 'Deliver Qty', 'Delivery Qty', 'Qty') or '').strip())
+            gd['_uoms'].append(str(find_dict_val(chal_row, 'UOM', 'Unit') or '').strip())
+            gd['_prices'].append(str(find_dict_val(chal_row, 'Unit Price', 'Price', 'Rate') or '').strip())
+            gd['_po_qtys'].append(str(find_dict_val(chal_row, 'PO Qty') or '').strip())
+            gd['_po_statuses'].append(str(find_dict_val(chal_row, 'PO Status') or '').strip())
             
         parsed_challans = []
         for doc_no, gd in grouped_challans.items():
@@ -580,3 +626,72 @@ def sync_from_google_sheet(company, force=False):
         print(f"[Google Sheets] Error in sync_from_google_sheet for {company}: {e}")
         
     return False
+
+def get_sync_health(company=None):
+    """
+    Returns high-visibility sync health statistics and error status for companies.
+    """
+    companies = [company] if company else ["SK Agro", "SK Electricals", "Triotech"]
+    health = {}
+    for comp in companies:
+        ck = comp.lower().strip().replace(' ', '_')
+        sync_url = db.get_setting(f"gsheet_sync_url_{ck}", "")
+        sheet_url = db.get_setting(f"gsheet_url_{ck}", "")
+        status = db.get_setting(f"gsheet_status_{ck}", "UNCONFIGURED" if not sync_url else "UNKNOWN")
+        last_error = db.get_setting(f"gsheet_last_error_{ck}", "")
+        last_success = db.get_setting(f"gsheet_last_success_{ck}", "")
+        last_push = db.get_setting(f"last_push_{ck}", "")
+        last_pull = db.get_setting(f"last_pull_{ck}", "")
+        doc_count = db.get_setting(f"gsheet_doc_count_{ck}", "0")
+        
+        # Calculate local total records in DB
+        all_docs = db.get_documents(company=comp)
+        inv_count = len([d for d in all_docs if str(d.get('doc_type','')).lower() == 'invoice'])
+        chal_count = len([d for d in all_docs if str(d.get('doc_type','')).lower() == 'challan'])
+        
+        health[comp] = {
+            "company": comp,
+            "configured": bool(sync_url),
+            "status": status if sync_url else "UNCONFIGURED",
+            "last_error": last_error,
+            "last_success": last_success,
+            "last_push": last_push,
+            "last_pull": last_pull,
+            "verified_doc_count": doc_count,
+            "local_invoice_count": inv_count,
+            "local_challan_count": chal_count,
+            "sheet_url": sheet_url,
+            "sync_url": sync_url
+        }
+    return health
+
+def reconcile_all_companies(force=False):
+    """
+    Periodic self-healing worker function to verify and repair sync across all configured companies.
+    """
+    companies = ["SK Agro", "SK Electricals", "Triotech"]
+    print(f"[Google Sheets Reconciliation] Running periodic health check across {len(companies)} companies...")
+    results = {}
+    for comp in companies:
+        ck = comp.lower().strip().replace(' ', '_')
+        sync_url = db.get_setting(f"gsheet_sync_url_{ck}", "")
+        if not sync_url:
+            continue
+            
+        status = db.get_setting(f"gsheet_status_{ck}", "UNKNOWN")
+        last_hash = db.get_setting(f"gsheet_hash_{ck}", "")
+        
+        all_docs = db.get_documents(company=comp)
+        invoices = [d for d in all_docs if str(d.get('doc_type', '')).strip().lower() == 'invoice']
+        challans = [d for d in all_docs if str(d.get('doc_type', '')).strip().lower() == 'challan']
+        current_hash = compute_data_hash(invoices, challans)
+        
+        needs_push = force or status == "FAILED" or current_hash != last_hash
+        if needs_push:
+            print(f"[Google Sheets Reconciliation] Repairing sync for {comp} (force={force}, status={status}, hash_match={current_hash == last_hash})...")
+            success = sync_to_google_sheet(comp, force=True)
+            results[comp] = "REPAIRED" if success else "FAILED"
+        else:
+            results[comp] = "OK"
+            
+    return results

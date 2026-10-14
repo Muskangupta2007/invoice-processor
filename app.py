@@ -24,6 +24,39 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db.init_db()
 
+# --- TRANSPARENT GZIP COMPRESSION & BANDWIDTH SAVER ---
+@app.after_request
+def compress_and_cache_response(response):
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    
+    # 1. Add Browser Caching for static assets (images, css, js, fonts)
+    path = request.path
+    if path.startswith('/static/') or path.endswith(('.css', '.js', '.png', '.jpg', '.svg', '.woff2', '.ico')):
+        if 'Cache-Control' not in response.headers:
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+        
+    # 2. Gzip compress text, json, html, css, js responses to save ~85% bandwidth
+    if (
+        'gzip' in accept_encoding.lower()
+        and 200 <= response.status_code < 300
+        and 'Content-Encoding' not in response.headers
+        and not response.direct_passthrough
+    ):
+        content_type = response.content_type or ''
+        if any(t in content_type for t in ['text/', 'application/json', 'application/javascript']):
+            data = response.get_data()
+            if len(data) >= 500:
+                gzip_buffer = io.BytesIO()
+                with gzip.GzipFile(mode='wb', compresslevel=6, fileobj=gzip_buffer) as gzfile:
+                    gzfile.write(data)
+                compressed = gzip_buffer.getvalue()
+                response.set_data(compressed)
+                response.headers['Content-Encoding'] = 'gzip'
+                response.headers['Content-Length'] = len(compressed)
+                response.headers['Vary'] = 'Accept-Encoding'
+
+    return response
+
 # --- SECURITY & ACCOUNT LOCKOUT SYSTEM ---
 failed_attempts = {} # client_ip -> {'count': int, 'last_failed': float, 'lockout_until': float}
 
@@ -149,6 +182,60 @@ def requires_settings_auth(f):
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
+
+# --- HEALTH CHECK & VERSION ENDPOINTS ---
+
+# Build timestamp recorded once when the server starts
+_BUILD_TIMESTAMP = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+def _get_git_commit():
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            capture_output=True, text=True, timeout=3,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        return result.stdout.strip() if result.returncode == 0 else "unknown"
+    except Exception:
+        return "unknown"
+
+_GIT_COMMIT = _get_git_commit()
+
+@app.route('/health')
+def health_check():
+    """Simple health check for Render uptime monitoring and manual verification."""
+    try:
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        row = cursor.fetchone()
+        doc_count = list(row.values())[0] if isinstance(row, dict) else row[0]
+        conn.close()
+        db_ok = True
+    except Exception as e:
+        doc_count = -1
+        db_ok = False
+
+    db_type = "postgresql" if os.environ.get("DATABASE_URL") else "sqlite"
+    return jsonify({
+        "status": "ok" if db_ok else "degraded",
+        "database": db_type,
+        "database_ok": db_ok,
+        "document_count": doc_count,
+        "git_commit": _GIT_COMMIT,
+        "build_timestamp": _BUILD_TIMESTAMP,
+        "version": "InvoSync v1.0"
+    }), 200 if db_ok else 503
+
+@app.route('/api/version')
+def version_info():
+    """Returns version and deployment info — useful to confirm which version is live."""
+    return jsonify({
+        "app": "InvoSync",
+        "git_commit": _GIT_COMMIT,
+        "build_timestamp": _BUILD_TIMESTAMP,
+        "database_type": "postgresql" if os.environ.get("DATABASE_URL") else "sqlite (local)"
+    })
 
 @app.after_request
 def add_header(response):
@@ -363,6 +450,17 @@ def force_push_gsheet():
         "status": "success",
         "message": "Force push sync to Google Sheets completed for all records.",
         "results": results
+    })
+
+@app.route('/api/gsheet-health', methods=['GET'])
+@requires_auth
+def gsheet_health():
+    company = request.args.get('company')
+    import gsheet
+    health_data = gsheet.get_sync_health(company)
+    return jsonify({
+        "status": "success",
+        "health": health_data
     })
 
 @app.route('/api/gsheet-webhook', methods=['POST'])
@@ -1362,6 +1460,25 @@ def register_mdns_service():
         atexit.register(lambda: (zeroconf.unregister_service(info), zeroconf.close()))
     except Exception as e:
         print(f"Failed to register mDNS service: {e}")
+
+def start_reconciliation_scheduler():
+    def reconciliation_loop():
+        import time, gsheet
+        time.sleep(10)  # Sleep 10s after startup to allow initial requests to settle
+        while True:
+            try:
+                gsheet.reconcile_all_companies()
+            except Exception as e:
+                print(f"[Reconciliation Scheduler] Error during background check: {e}")
+            time.sleep(300)  # Recheck every 5 minutes
+            
+    import threading
+    t = threading.Thread(target=reconciliation_loop, daemon=True)
+    t.start()
+    print("[Reconciliation Scheduler] Self-healing Google Sheets reconciliation background worker started.")
+
+# Start background reconciliation thread on module import (for Gunicorn / Render)
+start_reconciliation_scheduler()
 
 if __name__ == '__main__':
     # Register mDNS service so http://invoice.local:5000/ resolves on the local network

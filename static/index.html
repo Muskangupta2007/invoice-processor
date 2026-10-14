@@ -589,7 +589,7 @@
                                     <button id="force-sync-gsheets-btn" class="btn btn-primary" style="flex: 1; text-align: center;"><i class="fa-solid fa-cloud-arrow-up"></i> Force Sync All to Google Sheets Now</button>
                                 </div>
 
-                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">SK Agro Live Sync Settings</h3>
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">SK Agro Live Sync Settings</h3>
                                 <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                                     <div class="input-group">
                                         <label for="settings-gsheet-url-sk-agro">Google Sheet Browser URL</label>
@@ -607,7 +607,7 @@
                                     </div>
                                 </div>
 
-                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">SK Electricals Live Sync Settings</h3>
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">SK Electricals Live Sync Settings</h3>
                                 <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                                     <div class="input-group">
                                         <label for="settings-gsheet-url-sk-electricals">Google Sheet Browser URL</label>
@@ -625,7 +625,7 @@
                                     </div>
                                 </div>
 
-                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">Triotech Live Sync Settings</h3>
+                                <h3 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">Triotech Live Sync Settings</h3>
                                 <div class="review-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                     <div class="input-group">
                                         <label for="settings-gsheet-url-triotech">Google Sheet Browser URL</label>
@@ -821,7 +821,7 @@
                 <button class="modal-close" id="close-gsheet-modal"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-                <ol style="margin-left: 20px; margin-bottom: 20px; line-height: 1.6; color: rgba(255,255,255,0.85);">
+                <ol style="margin-left: 20px; margin-bottom: 20px; line-height: 1.6; color: var(--text-primary);">
                     <li style="margin-bottom: 8px;">Create a new Google Sheet for your company.</li>
                     <li style="margin-bottom: 8px;">Add three sheets (tabs) named exactly: <strong>Invoices</strong>, <strong>Delivery Challans</strong>, and <strong>Pending MRNs</strong>.</li>
                     <li style="margin-bottom: 8px;">From the top menu, go to <strong>Extensions</strong> &rarr; <strong>Apps Script</strong>.</li>
@@ -845,7 +845,7 @@
                         <span>Apps Script Code Snippet</span>
                         <button id="copy-gsheet-code-btn" class="btn btn-secondary btn-sm" style="padding: 4px 10px; font-size: 11px;"><i class="fa-solid fa-copy"></i> Copy Code</button>
                     </label>
-                    <textarea id="gsheet-script-code" readonly rows="12" style="font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.3); color: #fff; width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; box-sizing: border-box; resize: none;"></textarea>
+                    <textarea id="gsheet-script-code" readonly rows="12" style="font-family: monospace; font-size: 11px; background: var(--bg-app); color: var(--text-primary); width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; box-sizing: border-box; resize: none;"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -863,7 +863,7 @@
             </div>
             <form id="settings-auth-form">
                 <div class="modal-body">
-                    <p style="margin-bottom: 16px; color: rgba(255,255,255,0.85); font-size: 13px;">System configurations are locked. Please enter the Settings Lock Password to view or edit.</p>
+                    <p style="margin-bottom: 16px; color: var(--text-secondary); font-size: 13px;">System configurations are locked. Please enter the Settings Lock Password to view or edit.</p>
                     <div id="settings-auth-error-alert" class="alert-item alert-item-danger" style="display: none; margin-bottom: 16px;">
                         <i class="fa-solid fa-triangle-exclamation"></i>
                         <span id="settings-auth-error-text">Incorrect Settings Lock password.</span>

@@ -411,20 +411,11 @@ def init_db():
             try: conn.rollback()
             except Exception: pass
     
-    # Clean up hardcoded mock ASN numbers and enforce strict E-Way Bill and Challan No status rules in database
-    try:
-        cursor.execute("UPDATE documents SET asn_no = '' WHERE asn_no = 'ASN/26/000797'")
-        cursor.execute("UPDATE documents SET mode_of_transp = '' WHERE mode_of_transp = 'Tempo'")
-        cursor.execute("UPDATE documents SET eway_bill_no = '' WHERE UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')")
-        cursor.execute("UPDATE documents SET eway_bill = 'N/A' WHERE doc_type = 'Invoice' AND (eway_bill_no IS NULL OR TRIM(eway_bill_no) = '' OR UPPER(TRIM(eway_bill_no)) IN ('DONE', 'PENDING', 'N/A', 'NONE', 'NULL', '-')) AND CAST(amount AS REAL) < 50000")
-        cursor.execute("UPDATE documents SET doc_date = '14 July 2026', delivery_date = '14 July 2026' WHERE doc_no = 'INV/26-27/32'")
-        cursor.execute("UPDATE documents SET challan_no = 'SKH/DC/26-27/116' WHERE doc_no = 'SKH/26-27/224' OR challan_no LIKE '%390021%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%'")
-        cursor.execute("UPDATE documents SET challan_no = '' WHERE (UPPER(TRIM(challan_no)) IN ('45', '30', '60', '90', '15', '7', 'DIRECT INVOICE', '390021', 'VADODARA - 390021', 'OF', 'MODE/TERMS', 'PAYMENT', 'DELIVERY', 'TERMS', 'REF', 'NO', 'NO.', '45 DAYS', '30 DAYS') OR challan_no LIKE '%Larsen%' OR challan_no LIKE '%Survey%' OR challan_no LIKE '%Villa%' OR challan_no LIKE '%Bhayandar%' OR challan_no LIKE '%Thane%' OR challan_no LIKE '%@%' OR challan_no LIKE 'of%' OR challan_no LIKE 'Mode%' OR challan_no LIKE '%VADODARA%' OR challan_no LIKE '%GSTIN%' OR challan_no LIKE '%UIN%' OR challan_no LIKE '%Jul%' OR challan_no LIKE '%Jan%' OR challan_no LIKE '%Feb%' OR challan_no LIKE '%Mar%' OR challan_no LIKE '%Apr%' OR challan_no LIKE '%May%' OR challan_no LIKE '%Jun%' OR challan_no LIKE '%Aug%' OR challan_no LIKE '%Sep%' OR challan_no LIKE '%Oct%' OR challan_no LIKE '%Nov%' OR challan_no LIKE '%Dec%' OR challan_no LIKE '%Days%' OR challan_no LIKE '%DAYS%') AND doc_no != 'SKH/26-27/224'")
-        conn.commit()
-    except Exception as clean_err:
-        print(f"[DB Init] Cleanup warning: {clean_err}")
-        try: conn.rollback()
-        except Exception: pass
+    # NOTE: One-time data-correction SQL that was previously run here on every boot has been removed.
+    # Those statements (clearing mock ASN numbers, fixing dates for INV/26-27/32, sanitizing bad
+    # challan_no values) were applied and confirmed clean on 2026-10-14. Running them on every startup
+    # is dangerous because they silently overwrite any future legitimate user edits to those fields.
+    # If you need to run a data fix again, create a separate script and run it once manually.
     
     # Create settings table
     try:
